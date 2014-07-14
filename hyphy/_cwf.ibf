@@ -1,0 +1,80 @@
+LoadFunctionLibrary         ("ReadDelimitedFiles");
+
+/*----------------------------------------------------------------*/
+
+function _normalizeSequenceNamesInAFilter (filterName)
+{   
+ 	ExecuteCommands ("GetString(_seqNames,`filterName`,-1)");
+	
+	_renamingBuffer = {};
+	_namemap        = {};
+	
+	for (_k = 0; _k < Columns (_seqNames); _k+=1)
+	{
+		_seqName2 = normalizeSequenceID(_seqNames[_k],"_renamingBuffer");
+		if (_seqName2 != _seqNames[_k])
+		{
+			ExecuteCommands ("SetParameter (`filterName`,_k,_seqName2)");
+		}
+		_namemap [_seqName2] = _seqNames[_k];
+	}
+	
+	
+	return _namemap;
+}
+
+/*---------------------------------------------------------*/
+
+function computeMultFactorsWeighted (treeID)
+{
+	treeAVL2  = (^treeID)^ 0;
+	leafCount = Max(2,TipCount(^treeID)); 
+	
+	multFactors = {};
+	total_copies = 0;
+	
+	for (_k=1; _k<Abs(treeAVL2); _k += 1) {
+		aNode			= treeAVL2[_k];
+		aNodeName		= aNode["Name"];
+		parentIndex		= aNode["Parent"];
+		_k2				= Abs(aNode["Children"]);
+		if (_k2) {
+			currentDepth		   = aNode["Below"];
+			multFactors[aNodeName] = currentDepth;		
+			if (parentIndex > 0)
+			{
+				(treeAVL2[parentIndex])["Below"] += currentDepth;
+			}
+		}
+		else {
+			multFactors[aNodeName]		= get_copy_number (aNodeName);
+			total_copies += multFactors[aNodeName];
+			(treeAVL2[parentIndex])["Below"] += multFactors[aNodeName];
+		}
+		
+	}
+
+	pKeys 			= Rows(multFactors);
+	if (total_copies < 2) {
+	    total_copies = 2;
+	}
+	for (_k=0; _k<Columns(pKeys); _k=_k+1) {
+		aNodeName = pKeys[_k];
+		multFactors[aNodeName] = multFactors[aNodeName] * (total_copies-multFactors[aNodeName]);
+	}
+	
+	return total_copies;
+}
+
+//----------------------------------------------------------------------------------------
+
+lfunction get_copy_number (seq_id) {
+    if (Type (seq_id) == "String") {
+        match = seq_id $ "\_[0-9]+$";
+        if (match[0] >= 0) {
+            //fprintf (stdout, seq_id, ":", 0 + seq_id[match[0]+1][match[1]], "\n");
+            return 0 + seq_id[match[0]+1][match[1]];
+        }
+    }
+    return 1;
+}
