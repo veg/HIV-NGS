@@ -105,14 +105,15 @@ def main (ngs_cache, pairwise_cache, csv_writer, short_format):
                     ratio[sg] = None
                     all_calls[sg].append (None)
                         
+            '''
             if csv_writer is not None and True in [True if (ratio[gene] is not None and ratio[gene] >= 0.5) else False for gene in ['rt','env','gag']]:
                 csv_writer.writerow (['|'.join ([t[0],aeh_time (t[2])]), '|'.join ([t[1],aeh_time (t[3])]), 0.01499999])      
-               
-            '''
+            '''   
+            
             non_null = [k for k in ratio.values() if k is not None]
             if csv_writer is not None and len (non_null) > 2 and len ([k for k in non_null if k >= 0.5])>= 2:
                 csv_writer.writerow (['|'.join ([t[0],aeh_time (t[2])]), '|'.join ([t[1],aeh_time (t[3])]), 0.01499999])      
-            '''
+            
             #print (ratio)
                 
     

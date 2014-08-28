@@ -57,8 +57,9 @@ def diversity_info (div, tag):
 
 def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_info, pairwise_distance_info, short):
     
+    has_tropism = False
     
-    processed    = {'columns': ['PID','Date','Gene','Region','Median Coverage','Nucleotide diversity, %','Syn.diversity, %', 'Non-syn. diversity, %' ,''], 
+    processed    = {'columns': ['PID','Date','Gene','Region','Median Coverage','Nucleotide diversity, %','Syn.diversity, %', 'Non-syn. diversity, %' ,'X4 tropism, %',''], 
                       'data' : [] }
                       
     if intrahost_info is not None:
@@ -101,6 +102,10 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
     earilest_date_by_pid = {}
     merged_msa_to_info   = {}
     
+    print ("Loaded the pipeline cache file with %d records" % len (cache_file), file = sys.stderr)
+    
+    tried = 0
+    
     for record, item in cache_file.items():
         try:
             if 'filtered_fastq' not in item or item['filtered_fastq'] is None:
@@ -136,7 +141,10 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                 
             for gene, data in item.items():                     
                 try:
+                    current_step = None
                     dir_name = [pid, sample_date, gene]
+                    
+                    tried += 1
                 
                     row = [pid,date,gene]
                     if has_compartment:
@@ -149,14 +157,19 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                       
                     dir_name = '_'.join (dir_name)
                     
+                    
+                    
                     merged_msa_to_info [data['merged_msa']] = [pid, date, gene, compartment, replicate]
+                    current_step = "Checking for merged_json"
                                     
                     files_to_copy = [data['merged_json']]
                     # read coverage info
                     
                     ci = None
                     
+                    current_step = "Opening merged_json"
                     with open (files_to_copy[0]) as fh: 
+                        current_step = "Loading %s" % files_to_copy[0]
                         ci = coverage_info(json.load (fh))
                         
                                                   
@@ -166,6 +179,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     
                         files_to_copy.append (data['tn93_json'])
                         with open (files_to_copy[-1]) as fh:
+                            current_step = "Loading %s" % files_to_copy[-1]
                             tn93 = json.load (fh)
                         
                         tn93_dist = tn93['Mean distance']
@@ -173,6 +187,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         
                         files_to_copy.append (data['region_merged_processed'])
                         with open (files_to_copy[-1]) as fh:
+                            current_step = "Loading %s " %  files_to_copy[-1]
                             diversity = json.load (fh)
                                  
                     
@@ -183,10 +198,16 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                             row.append (diversity_info (diversity, 'S')['max']*100.)
                             row.append (diversity_info (diversity, 'NS')['max']*100.)
                         
-
+                        if 'tropism' in data and data['tropism']:
+                            current_step = "Copying tropism data"
+                            row.append (data['tropism']['X4'] * 100.)
+                            has_tropism = True
+                        else:
+                            row.append ('N/A')
 
                         files_to_copy.append (data['json_rates'])
                         with open (files_to_copy[-1]) as fh:
+                            current_step = "Loading json_rates %s" % files_to_copy[-1]
                             json.load (fh)
                                  
                         #print (row)         
@@ -221,10 +242,10 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                                         
                                         
                             except (KeyError, AttributeError, TypeError, FileNotFoundError, ValueError) as e:
-                                #print ("Failing", e)
+                                #print ("Failing key %s (%s)" % (gene, str (e)), file = sys.stderr)
                                 pass
                     else:
-                        row.extend ([None,ci[1]['median'],None,None,None])
+                        row.extend ([None,ci[1]['median'],None,None,None,None])
                     
                     result_path = os.path.join (store_dir,dir_name)
                     if not os.path.exists (result_path):
@@ -238,7 +259,8 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     processed['data'].append (row)
                     
                 except (KeyError, AttributeError, TypeError, ValueError) as e:
-                    #print ("Failing", row, e)
+                    if current_step:
+                        print ("Failing %s" % current_step, row, e)
                     #raise
                     #print (e)
                     continue
@@ -247,7 +269,12 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
             if record != 'F_ST':
                 print ('Missing required record fields for %s' % (record), e, file = sys.stderr)
            
-           
+    if not has_tropism:
+        for row in processed['data']:
+            row.pop (-2)
+        processed['columns'].pop (-2)
+
+    print ("Compiled data on %d out of %d present individual NGS libraries" % (len (processed['data']), tried), file = sys.stderr)
            
     if intrahost_info is not None and pairwise_distance_info is not None:
         for d in processed['data']:
@@ -272,9 +299,6 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
             except (KeyError, AttributeError, TypeError) as e:
                 continue
             
-        #print (id_to_pid_date, earilest_date_by_pid)
-        
-        
         for pair, distance_info in pairwise_distance_info.items():
             if short:
                 pair_info = pair.split ('-')
@@ -303,27 +327,44 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                 store_dict = processed ['intrahost'][pid][gene]
                 if has_compartment:
                     store_dict = store_dict[tag1[2 + offset]]
+                    if tag1[2+offset] != tag2[2+offset]:
+                        continue
                 if has_replicate:
-                    store_dict = store_dict[tag1[2 + offset + (1 if has_replicate else 0)]]
+                    repl_off = 2 + offset + (1 if has_compartment else 0)
+                    store_dict = store_dict[tag1[repl_off]]
+                    if tag1[repl_off] != tag2[repl_off]:
+                        continue
             
                 #store_dict [earilest_date_by_pid[pid]]['tn93_divergence'] = 0.0
                 
-                
-                
                 if pid == tag2 [0]:
-                
-                    if earilest_date_by_pid[pid] == tag1[1] or earilest_date_by_pid[pid] == tag2[1]:
+                    baseline_date = earilest_date_by_pid[pid]
+                    if baseline_date == tag1[1] or baseline_date[pid] == tag2[1]:
+                 
+                        add_key_if_missing (store_dict, tag1[1], {})
+                        add_key_if_missing (store_dict, tag2[1], {})
                         store_dict [tag1[1]]['tn93_divergence'] = 0.
                         store_dict [tag2[1]]['tn93_divergence'] = 0.
                         
                         store_here = tag2[1] if earilest_date_by_pid[pid] == tag1[1] else tag1[1]
+                        
                         store_dict [store_here]['tn93_divergence'] = distance_info['Mean']
                         
                         if 'Histogram' in distance_info:
                            store_dict [store_here]['tn93_divergence_histogram'] =  distance_info['Histogram']
+                           
+                        #26919/20010921/BP/2/env/   
+                        '''if '26919' in processed ['intrahost']:
+                            if 'env' in processed ['intrahost']['26919']:
+                                if 'BP' in processed ['intrahost']['26919']['env']:
+                                    if '2' in processed ['intrahost']['26919']['env']['BP']:
+                                        if '2001/09/21' in processed ['intrahost']['26919']['env']['BP']['2']:
+                                            print ('BARF', pair, tag1, tag2)
+                                            sys.exit (1)
+                        '''
                         
             except (KeyError, AttributeError, TypeError) as e:
-                #print (e)
+                #print (pid, e)
                 pass
                     
     if has_fst:

@@ -95,7 +95,7 @@ def run_hyphy_div (node_to_run_on):
             command =  ['/usr/bin/bpsh', str(node_to_run_on), '/usr/local/bin/HYPHYMP', hbf]
             process = subprocess.Popen (command, stdin = subprocess.PIPE, stderr = subprocess.PIPE, stdout = subprocess.PIPE) 
             out, err = process.communicate (bytes(infile,'UTF-8'))
-            if len (err):
+            if len (err) or len (out):
                 print (err, out)
             
             write_to_cache_lock.acquire()
@@ -155,9 +155,9 @@ def main (ngs_cache, host_cache_path, nodes_to_run_on, genes, has_compartment, h
     else:
         host_cache = {}
         
-    print ("Loaded cache info on %d hosts" % len (host_cache), file = sys.stderr)            
-        
+    print ("Loaded cache info on %d hosts" % len (host_cache), file = sys.stderr) 
     
+   
     task_queue = queue.Queue ()
     for node in nodes_to_run_on:
         t = threading.Thread (target = realign_the_files, args = (node,))
@@ -217,7 +217,7 @@ def main (ngs_cache, host_cache_path, nodes_to_run_on, genes, has_compartment, h
                     task_queue.put ([overall_path, reference_file, overall_path + ".bam", overall_path + ".msa", this_file_record, sample_date, file_hash, host_cache_path])
                     redo_overall.update (set(this_file_record))
                     
-            except (KeyError,TypeError):
+            except (KeyError,TypeError) as e:
                 pass    
 
             except Exception as e:

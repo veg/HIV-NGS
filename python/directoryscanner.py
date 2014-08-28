@@ -1,6 +1,6 @@
 import os, argparse, re, sys
 import subprocess, time, csv
-import datetime, shutil, json, operator
+import datetime, shutil, json, operator, hashlib
 #import xlsx
 from os.path import join, splitext, isfile
 from Bio import SeqIO
@@ -38,7 +38,7 @@ window   = 210
 stride   = 30
     
 force_diversity_estimation = False
-force_qfilt_rerun		   = False
+force_qfilt_rerun           = False
 
 ### TASK RUNNERS ###
 
@@ -68,6 +68,12 @@ def run_qfilt (in_path, in_qual, results_path, status_path):
                 
             except subprocess.CalledProcessError as e:
                 print ('ERROR: QFILT call failed failed',e,file = sys.stderr)
+                try:
+                    if os.path.getsize (results_path) > 2**16:
+                        return results_path
+                except:
+                    pass
+                    
                 return None
             return results_path
 
@@ -244,6 +250,52 @@ def extract_and_collapse_well_covered_region (in_path, out_path, node, read_leng
                         return list(collapsed.items())[0]
                 
     return None
+
+
+def run_tropism_prediction (env_gene, out_path, node):
+    result = {}
+    v3_model = os.path.join (path_to_this_file, "../data/V3.model")
+    
+    idepi_out = join (out_path, "idepi.json")
+    updated = False
+    
+    if os.path.exists (idepi_out):
+        with open (idepi_out, "r") as fh:
+            try:
+                result = json.load (fh)
+            except ValueError as e:
+                pass
+                #print ("Error reloading JSON info from %s" % diversity_out, file = sys.stderr)
+                #raise e
+                
+    if len (result) == 0:
+        print ("Running tropism predictions on %s (node %d)" % (env_gene, node), file = sys.stderr)
+        with open (idepi_out, "w") as json_out:
+            try:
+                call_array = ['/usr/bin/bpsh', str(node), '/opt/share/python3.3/idepi', 'predict', v3_model, env_gene]
+            #print (call_array)
+                subprocess.check_call (call_array,stdout = json_out, stderr = subprocess.DEVNULL) 
+            except subprocess.CalledProcessError as e:
+                print ('ERROR: Tropism predictions call failed',e,file = sys.stderr)
+                return None
+
+        with open (idepi_out, "r") as fh:
+            try:
+                result = json.load (fh)
+            except ValueError as e:
+                pass
+        
+    if len (result):
+        counts = {-1 : 0, 1 : 0}
+        
+        for seq in result['predictions']:
+            counts [seq['value']] += float(seq['id'].split (':')[1])
+            
+        total = sum (counts.values())
+        return {'R5' :  counts[-1] / total, 'X4' : counts[1] / total}
+    
+    return None
+    
 
 def process_diagnostic_region (in_path_list, out_path, node):
     result = {}
@@ -425,6 +477,9 @@ def handle_a_gene (base_path, file_results_dir_overall, i, gene, analysis_cache,
             if force_diversity_estimation or analysis_cache ['overall_region'][0] not in analysis_cache['region_merged_msa']:
                 analysis_cache['region_merged_msa'][analysis_cache ['overall_region'][0]] = analysis_cache ['overall_region'][1]
                 update_json = set_update_json (file_results_dir, "analysis_cache ['overall_region'][0] not in analysis_cache['region_msa']")
+            
+            if gene == 'env' and ('tropism' not in analysis_cache or analysis_cache['tropism'] is None):
+                analysis_cache['tropism']  = run_tropism_prediction (analysis_cache ['overall_region'][1], file_results_dir, node)
                 
         analysis_cache ['region_merged_processed'], update_json_local = process_diagnostic_region (analysis_cache ['region_merged_msa'], file_results_dir, node)
         if update_json_local:
@@ -466,6 +521,12 @@ def check_keys_in_dict (d, k):
         return check_keys_in_dict (d [k[0]], k[1:])   
     return d[k[0]]
     
+def hash_file (filepath):
+    m = hashlib.md5()
+    with open (filepath, "rb") as fh:
+        m.update (fh.read())
+    return m.hexdigest() 
+    
 def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_filt):
                 
     global NGS_run_cache
@@ -490,28 +551,28 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
     
     tasks_by_gene = {}
 
-	# check for zip files first
+    # check for zip files first
     for root, dirs, files in os.walk(dir):
         for file in files:
             name, ext = splitext (file)
             if len (ext) > 0 and ext in ('.zip'):
-            	base_path = join(root, name) 
-            	full_file = base_path + ".zip" 
-            	print ("Unzipping %s " % full_file)
-            	try:
-            		subprocess.check_call (['/usr/bin/unzip', '-n', '-d', root, '-j', full_file])
-            		os.remove (full_file)			
-            	except subprocess.CalledProcessError as e:
-            		print ('ERROR: UNZIP call failed failed',e,file = sys.stderr)
-            	
+                base_path = join(root, name) 
+                full_file = base_path + ".zip" 
+                print ("Unzipping %s " % full_file)
+                try:
+                    subprocess.check_call (['/usr/bin/unzip', '-n', '-d', root, '-j', full_file])
+                    os.remove (full_file)            
+                except subprocess.CalledProcessError as e:
+                    print ('ERROR: UNZIP call failed failed',e,file = sys.stderr)
+                
     #sys.exit (0)
-		
+        
     
     for root, dirs, files in os.walk(dir):
         for file in files:
             name, ext = splitext (file)
             if len (ext) > 0 and ext in ('.fna','.fastq'):
-                base_path = join(root, name)   
+                base_path = root  
                 if name == 'qfilt' and scan_q_filt != True or name == 'discards': 
                     continue
                 base_file = join(root, name + ext)
@@ -521,6 +582,7 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
                     NGS_run_cache [base_path] = {'id' : len (NGS_run_cache) + 1}
                     
                 print ('Working on %s...' % base_file, file = sys.stderr)             
+                
                 
                 if has_replicate_counts:
                     if has_compartment_data:
@@ -561,13 +623,32 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
                 if not os.path.exists (file_results_dir_overall):
                     os.makedirs (file_results_dir_overall) 
 
-                if 'in_fasta' not in NGS_run_cache [base_path]:
+                if 'in_fasta' not in NGS_run_cache [base_path] and 'in_fastq' not in NGS_run_cache [base_path]:
+                    NGS_run_cache [base_path]['md5'] = hash_file (base_file)                                         
                     if ext == '.fastq':
-                        NGS_run_cache [base_path]['in_fastq'] = base_file                    
+                        NGS_run_cache [base_path]['in_fastq'] = base_file  
                     else:
                         NGS_run_cache [base_path]['in_fasta'] = base_file
                         NGS_run_cache [base_path]['in_qual'] = join(root, name + ".qual")
-
+                else:
+                    do_skip  = False
+                    same_hash = False
+                    
+                    key_pair = ('in_fastq', '.fna') if 'in_fastq' in NGS_run_cache [base_path] else ('in_fasta', '.fastq')
+                    
+                    if ext == key_pair[1]:
+                        do_skip = True
+                    else:
+                        if NGS_run_cache [base_path][key_pair[0]] != base_file:
+                            do_skip = True
+                            same_hash =  NGS_run_cache [base_path]['md5'] == hash_file (base_file)
+                    
+                    if do_skip:
+                        print ("Skipping file %s because the path has already been processed, i.e. there are multiple NGS files in %s'" % (base_file, root) , file = sys.stderr)
+                        if not same_hash:
+                            print ("\tWARNING!!!! Different hashes for different NGS files")
+                        continue
+    
 
                 median_read_length = 200
                 
@@ -637,6 +718,8 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
                             if value['compartment'] not in compartmentalization_sets[tag][key2]:
                                 compartmentalization_sets[tag][key2][value['compartment']] = []
                             compartmentalization_sets[tag][key2][value['compartment']].append ( value2['merged_msa'])
+    
+    print ("Compartmentalization sets", compartmentalization_sets)
     
     for node in nodes_to_run_on:
         t = threading.Thread (target = compartmentalization_handler, args = (node,))
