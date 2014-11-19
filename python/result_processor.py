@@ -10,6 +10,12 @@ import math
 
 DRAMs = {}
 
+def parse_a_date (sample_date):
+    try:
+        return datetime.datetime.strptime(sample_date, "%Y%m%d").strftime ("%Y/%m/%d")
+    except ValueError as e:
+        return sample_date
+
 
 def add_key_if_missing (d, k, v):
     if k not in d:
@@ -55,7 +61,7 @@ def diversity_info (div, tag):
         return None
 
 
-def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_info, pairwise_distance_info, short):
+def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_info, pairwise_distance_info, short, ignore_replicate):
     
     has_tropism = False
     
@@ -114,7 +120,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
             row = []
             pid  = item ["patient_id"]
             sample_date = item["sample_date"]
-            date = datetime.datetime.strptime(sample_date, "%Y%m%d").strftime ("%Y/%m/%d")
+            date = parse_a_date (sample_date)
             
                 
             if pid not in earilest_date_by_pid:
@@ -230,11 +236,11 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                             
                                         if has_compartment:
                                             store_here = add_key_if_missing (store_here, compartment, {})
-                                        if has_replicate:
+                                        if has_replicate and not ignore_replicate:
                                             store_here = add_key_if_missing (store_here, replicate, {})
                         
                                         for r in intra_host:
-                                            div_date = datetime.datetime.strptime(r[0], "%Y%m%d").strftime ("%Y/%m/%d")
+                                            div_date = parse_a_date (r[0])
                                             store_here[div_date] = {}
                                             for c in range(1,len(r)):
                                                  store_here[div_date][headers[c]] = r[c]
@@ -247,23 +253,24 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     else:
                         row.extend ([None,ci[1]['median'],None,None,None,None])
                     
-                    result_path = os.path.join (store_dir,dir_name)
-                    if not os.path.exists (result_path):
-                        os.makedirs (result_path)
-                
-                    for file in files_to_copy:
-                        shutil.copy (file, result_path)
-                        
-                    row.append (dir_name)
-                    #print (dir_name, row)
-                    processed['data'].append (row)
                     
                 except (KeyError, AttributeError, TypeError, ValueError) as e:
                     if current_step:
+                        row.extend ([None for k in range (len (row), len (processed['columns'])-1)])
                         print ("Failing %s" % current_step, row, e)
-                    #raise
-                    #print (e)
-                    continue
+                    else:
+                        continue
+
+                result_path = os.path.join (store_dir,dir_name)
+                if not os.path.exists (result_path):
+                    os.makedirs (result_path)
+            
+                for file in files_to_copy:
+                    shutil.copy (file, result_path)
+                    
+                row.append (dir_name)
+                #print (dir_name, row)
+                processed['data'].append (row)
                     
         except (KeyError,TypeError) as e:
             if record != 'F_ST':
@@ -285,7 +292,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                 if has_compartment:
                     id += 1
                     store_dict = store_dict[d[id]]
-                if has_replicate:
+                if has_replicate and not ignore_replicate:
                     id += 1
                     store_dict = store_dict[d[id]]
                 
@@ -322,32 +329,46 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
             
             pid = tag1[0]
                                                   
+            #print (tag1, tag2)
                                         
             try:
                 store_dict = processed ['intrahost'][pid][gene]
                 if has_compartment:
-                    store_dict = store_dict[tag1[2 + offset]]
-                    if tag1[2+offset] != tag2[2+offset]:
+                    #store_dict = store_dict[tag1[3]]
+                    if tag1[3] != tag2[3]:
                         continue
+                '''
                 if has_replicate:
-                    repl_off = 2 + offset + (1 if has_compartment else 0)
-                    store_dict = store_dict[tag1[repl_off]]
-                    if tag1[repl_off] != tag2[repl_off]:
+                    store_dict = store_dict[tag1[4]]
+                    if tag1[4] != tag2[4]:
                         continue
+                '''
             
+                #print (tag1, tag2)
                 #store_dict [earilest_date_by_pid[pid]]['tn93_divergence'] = 0.0
                 
                 if pid == tag2 [0]:
                     baseline_date = earilest_date_by_pid[pid]
                     if baseline_date == tag1[1] or baseline_date[pid] == tag2[1]:
                  
-                        add_key_if_missing (store_dict, tag1[1], {})
-                        add_key_if_missing (store_dict, tag2[1], {})
-                        store_dict [tag1[1]]['tn93_divergence'] = 0.
-                        store_dict [tag2[1]]['tn93_divergence'] = 0.
+                        #add_key_if_missing (store_dict, tag1[1], {})
+                        #add_key_if_missing (store_dict, tag2[1], {})
+                        #store_dict [tag1[1]]['tn93_divergence'] = 0.
+                        #store_dict [tag2[1]]['tn93_divergence'] = 0.
                         
-                        store_here = tag2[1] if earilest_date_by_pid[pid] == tag1[1] else tag1[1]
+                        if earilest_date_by_pid[pid] == tag1[1]:
+                            store_tag = tag2
+                        else:
+                            store_tag = tag1
+                            
+                        store_here = store_tag [1]
+                        if has_compartment:
+                            store_dict = store_dict[store_tag[3]]
+                        if has_replicate and not ignore_replicate:
+                            store_dict = store_dict[store_tag[4]]
                         
+                        
+                        add_key_if_missing (store_dict, store_here, {})
                         store_dict [store_here]['tn93_divergence'] = distance_info['Mean']
                         
                         if 'Histogram' in distance_info:
@@ -377,7 +398,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                             info1 = merged_msa_to_info[id1]
                             info2 = merged_msa_to_info[id2]
                             store_here = add_key_if_missing (processed["F_ST"], f_pid, {})
-                            store_here = add_key_if_missing (store_here, datetime.datetime.strptime(f_date, "%Y%m%d").strftime ("%Y/%m/%d"), {})
+                            store_here = add_key_if_missing (store_here, parse_a_date(f_date), {})
                             store_here = add_key_if_missing (store_here, f_gene, [])
                             store_here.append ([info1[-1], info2[-1], pair_data])
                             
@@ -387,7 +408,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     
          
     processed['data'].sort (key = lambda row : row[0: (3 + (1 if has_compartment else 0) + (1 if has_replicate else 0))])
-    json.dump (processed, out, indent=4)
+    json.dump (processed, out, indent=1)
 
                                    
     
@@ -454,6 +475,14 @@ if __name__ == '__main__':
         default=False
     )
 
+
+    parser.add_argument(
+        '-g', '--ignore_replicate',
+        help='ignore replicate information when computing intra-host tables',
+        action = 'store_true',
+        default=False
+    )
+
     args = None
     retcode = -1
     args = parser.parse_args()
@@ -462,7 +491,7 @@ if __name__ == '__main__':
     #loadDRM ("Scores_NRTI.txt", "RT", "NRTI")
     #loadDRM ("Scores_NNRTI.txt", "RT", "NNRTI")
         
-    retcode = main(json.load (args.cache), args.json, args.output, args.compartment, args.replicate, json.load(args.diversity) if args.diversity is not None else None , json.load(args.pairwise) if args.pairwise is not None else None, args.short)
+    retcode = main(json.load (args.cache), args.json, args.output, args.compartment, args.replicate, json.load(args.diversity) if args.diversity is not None else None , json.load(args.pairwise) if args.pairwise is not None else None, args.short, args.ignore_replicate)
     
     sys.exit(retcode)
 

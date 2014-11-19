@@ -24,7 +24,7 @@ def codon_aligner (in_path, out_path, node, ref = 'HXB2_prrt'):
     bam_out = join (out_path, "aligned.bam")
     discards = join(out_path, 'discards.fna')
 
-    if check_file_paths and os.path.exists (bam_out) and  os.path.exists (discards):
+    if check_file_paths and os.path.exists (bam_out) and os.path.getsize ( bam_out ) and  os.path.exists (discards):
         return bam_out, discards
           
     command = ['/usr/bin/bpsh', str(node), '/opt/share/pytools/utils/python3.3/bealign', '-r', ref, '-e', '0.5', '-m', 'HIV_BETWEEN_F', '-D', discards, '-R', in_path, bam_out ]      
@@ -38,10 +38,13 @@ def codon_aligner (in_path, out_path, node, ref = 'HXB2_prrt'):
 def bam_to_fasta (in_path, out_path):
     print ("Running bam2msa on %s " % in_path, file = sys.stderr)
     msa_out = join (out_path, "aligned.msa")
-
-    if check_file_paths and os.path.exists (msa_out):
+    sorted_bam = join (out_path, "kludge")
+    if check_file_paths and os.path.exists (msa_out) and os.path.getsize ( msa_out ) > 0:
         return msa_out
     try:
+        print ("Running samtools sort on %s to %s" % (in_path,sorted_bam), file = sys.stderr)
+        subprocess.check_call (['/usr/bin/samtools', 'sort', in_path, sorted_bam],stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
+        shutil.move (sorted_bam + ".bam", in_path)
         subprocess.check_call (['/opt/share/python3.3/bam2msa', in_path, msa_out],stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
     except subprocess.CalledProcessError as e:
         print ('ERROR: bam2msa call failed failed',e,file = sys.stderr)

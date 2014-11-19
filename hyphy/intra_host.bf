@@ -26,6 +26,12 @@ while (1) {
     if (date_string == "EOF") {
         output_file = file;
         break;
+    } else {
+        ExecuteAFile (HYPHY_LIB_DIRECTORY + "TemplateBatchFiles" + DIRECTORY_SEPARATOR + "CleanStopCodons.bf",
+                {"1" : file,
+                 "0" : "Universal",
+                 "2" : "No/No",
+                 "3" : file});    
     }
     
     count_by_date [date_string] += 1;
@@ -94,7 +100,6 @@ allTreeAVL = allTree ^ 0;
 bls = getNucRevBranchLengthsAndParameters ("filteredData", "allTree");
 
 fprintf (output_file + ".nwk", CLEAR_FILE, PostOrderAVL2StringDistances (allTreeAVL, bls["lengths"]));
-
 
 GetDataInfo (site_map, allDataCodon);
 
@@ -240,7 +245,9 @@ function makePartitionBuiltTreeFitMG (dataID, sites, sequences, prefix, reroot) 
     DataSetFilter `prefix`_filter = CreateFilter(reduced,3,,,GeneticCodeExclusions);
     LikelihoodFunction `prefix`_lf = (`prefix`_filter,`prefix`_tree);
     unconstrainGlobalParameters(\"`prefix`_lf\");
+    VERBOSITY_LEVEL = 0;
     Optimize (res, `prefix`_lf);    
+    VERBOSITY_LEVEL = 0;
     USE_LAST_RESULTS = 0;
     ");  
     
@@ -299,6 +306,7 @@ function divergenceForFilter (filterID, rootSeq) {
         pc = pairwiseCodon (rootSeq, seq);
         total = total + (pc)*(0+copyN);
         copy_count += copyN;
+        //fprintf (stdout, ">",seqName, "\n", seq, "\n>root\n", rootSeq, "\n", pc[0], "\n");
         
         if (Abs (div_filter_name)) {
             div_filter_name_l = div_filter_name + "_" + seqName + ".lf";

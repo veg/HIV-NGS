@@ -7,7 +7,7 @@ from Bio import SeqIO
 import threading
 import queue
 import ngs_task_runners as ntr
-from itertools import product
+from itertools import product, combinations
 
 
 global previous_run_cache
@@ -25,8 +25,8 @@ path_to_this_file = os.path.dirname(os.path.realpath(__file__))
 
 ntr.set_cache_flags (check_file_paths, check_file_paths_diversity)
 
-known_refs  = [os.path.normpath(os.path.join (path_to_this_file, k)) for k in ['../data/rt.fas','../data/gag_p24.fas','../data/env_C2V5.fas', '../data/pr.fas']]
-known_genes = ['rt','gag', 'env', 'pr']
+known_refs  = [os.path.normpath(os.path.join (path_to_this_file, k)) for k in ['../data/rt.fas','../data/gag_p24.fas','../data/env_C2V5.fas', '../data/pr.fas', '../data/hcv1bcore.fas']]
+known_genes = ['rt','gag', 'env', 'pr', 'hcv1bcore']
 genes       = []
 
 cache_file = ""
@@ -136,7 +136,10 @@ def multinomial_filter (in_path, out_path, node):
 def check_compartmenalization (in_paths, node, replicates = 100, subset = 0.2, min_overlap = 150):
     print ("Running compartmenalization tests on %s (node %d) " % (in_paths, node), file = sys.stderr)
     baseline_json = None
+    out = ''
+    json_out = ''
     try:
+        status = 'Running initial F_ST'
         process = subprocess.Popen (['/usr/bin/bpsh', str(node), '/usr/local/bin/tn93', '-t', str(0.01), '-l', str (min_overlap), '-c', '-q', '-m', '-u', str(subset), '-s', in_paths[0][0], in_paths[1][0]], stdin = subprocess.DEVNULL, stderr = subprocess.PIPE, stdout = subprocess.PIPE, universal_newlines = True) 
         out, json_out = process.communicate ()
         baseline_json = json.loads(json_out)
@@ -144,6 +147,7 @@ def check_compartmenalization (in_paths, node, replicates = 100, subset = 0.2, m
         #print ("F_ST baseline = %g" % baseline)
         p_v = 0
         for k in range (replicates):
+            status = 'Running replicate %d' % k
             process = subprocess.Popen (['/usr/bin/bpsh', str(node), '/usr/local/bin/tn93', '-t', str(0.01), '-l', str (min_overlap), '-c', '-b', '-q', '-m', '-u', str(subset), '-s', in_paths[0][0], in_paths[1][0]], stdin = subprocess.DEVNULL, stderr = subprocess.PIPE, stdout = subprocess.PIPE, universal_newlines = True) 
             out, json_out = process.communicate ()
             sim_fst = json.loads(json_out)['F_ST']
@@ -162,7 +166,8 @@ def check_compartmenalization (in_paths, node, replicates = 100, subset = 0.2, m
                 
     except subprocess.CalledProcessError as e:
         print ('ERROR: tn93 call failed in check_compartmenalization',e,file = sys.stderr)
-    except:
+    except Exception as e:
+        print ('ERROR: check_compartmenalization error on %s and %s\n\t\n%s\n%s\n%s' % (str(in_paths[0]), str(in_paths[1]), status, json_out, out),e,file = sys.stderr)
         pass
         #print (json_out)
 
@@ -187,13 +192,12 @@ def collapse_diagnostic_region (in_path_list, out_path, node, overlap = 100, cou
     result = {}
     for region, in_path in in_path_list.items():    
         if in_path is not None and os.path.exists (in_path) or force_diversity_estimation:
-            print ("Collapsing diagnostic region (overlap %d, count = %d) for %s (node %d) " % (overlap, count, in_path, node), file = sys.stderr)
             merged_out = join (out_path, "region_reduced_%s.msa" % region)
             try:
                 if check_file_paths_diversity and os.path.exists (merged_out) and not force_diversity_estimation:
                     result [region] = merged_out
                     continue
-                
+                print ("Collapsing diagnostic region (overlap %d, count = %d) for %s (node %d) " % (overlap, count, in_path, node), file = sys.stderr)
                 call_array = ['/usr/bin/bpsh', str(node), '/usr/local/bin/readreduce', '-o', merged_out, '-l', str (overlap), '-s', str (count), in_path]
                 #print (call_array)
                 subprocess.check_call (call_array, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
@@ -335,7 +339,7 @@ def process_diagnostic_region (in_path_list, out_path, node):
             return None, False
             
     with open (diversity_out, "w") as fh:
-        json.dump (result, fh, sort_keys=True, indent=4)
+        json.dump (result, fh, sort_keys=True, indent=1)
                
     return diversity_out, updated    
     
@@ -349,7 +353,7 @@ def update_global_record (base_path, gene, analysis_record):
     NGS_run_cache[base_path][gene] = analysis_record
     print ("DUMPING JSON WITH %d RECORDS" % len (NGS_run_cache))
     with open (cache_file, "w") as fh:
-        json.dump (NGS_run_cache, fh,default=dthandler, sort_keys=True, indent=4)
+        json.dump (NGS_run_cache, fh,default=dthandler, sort_keys=True, indent=1)
     update_json = False
     
     threading_lock.release()
@@ -363,12 +367,12 @@ def analysis_handler (node_to_run_on):
 def compartmentalization_handler (node_to_run_on):
     while True:
         in_paths, tag, analysis_record = task_queue.get()
-        cr = check_compartmenalization (in_paths, node_to_run_on)
+        cr = check_compartmenalization (in_paths, node_to_run_on, subset = 0.33)
         threading_lock.acquire()
         analysis_record[tag] = cr
         
         with open (cache_file, "w") as fh:
-            json.dump (NGS_run_cache, fh,default=dthandler, sort_keys=True, indent=4)
+            json.dump (NGS_run_cache, fh,default=dthandler, sort_keys=True, indent=1)
             
         threading_lock.release()
         task_queue.task_done()
@@ -414,9 +418,9 @@ def handle_a_gene (base_path, file_results_dir_overall, i, gene, analysis_cache,
         update_json = False
 
     if 'aligned_bam' in analysis_cache and analysis_cache ['aligned_bam'] is not None:
-        if 'aligned_msa' not in analysis_cache:
+        if 'aligned_msa' not in analysis_cache or analysis_cache['aligned_msa'] is None:
             analysis_cache ['aligned_msa'] = ntr.bam_to_fasta (analysis_cache ['aligned_bam'], file_results_dir)
-            if os.path.getsize ( analysis_cache ['aligned_msa']) > 0:
+            if analysis_cache ['aligned_msa'] is not None and os.path.getsize ( analysis_cache ['aligned_msa']) > 0:
                 update_json = set_update_json (file_results_dir, "os.path.getsize ( analysis_cache ['aligned_msa']) > 0")
             else:
                 analysis_cache['aligned_msa'] = None
@@ -680,8 +684,8 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
 
     
     with open (cache_file, "w") as fh:
-        json.dump (NGS_run_cache, fh,default=dthandler, sort_keys=True, indent=4)
-
+        json.dump (NGS_run_cache, fh,default=dthandler, sort_keys=True, indent=1)
+    
     for gene,task_list in tasks_by_gene.items():
         task_queue = queue.Queue ()
     
@@ -694,7 +698,6 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
             task_queue.put (task, block = False)
             
         task_queue.join()    
-    
     #task_queue.join()    
 
     task_queue = queue.Queue ()
@@ -711,15 +714,13 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
                     compartmentalization_sets[tag] = {}
                 for key2, value2 in value.items():
                     if key2 not in non_gene_keys:
-                        if 'merged_msa' in value2:
+                        if 'merged_msa' in value2 and 'overall_region' in value2 and value2['overall_region']:
                             #print (tag, key2, value['compartment'] )
                             if key2 not in compartmentalization_sets[tag]:
                                 compartmentalization_sets[tag][key2] = {}
                             if value['compartment'] not in compartmentalization_sets[tag][key2]:
                                 compartmentalization_sets[tag][key2][value['compartment']] = []
                             compartmentalization_sets[tag][key2][value['compartment']].append ( value2['merged_msa'])
-    
-    print ("Compartmentalization sets", compartmentalization_sets)
     
     for node in nodes_to_run_on:
         t = threading.Thread (target = compartmentalization_handler, args = (node,))
@@ -728,18 +729,23 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
 
     for sample, info in compartmentalization_sets.items():
         for gene, data in info.items():
-            if len (data) == 2:
+            if len (data) >= 2:
                 compartments = list (data.keys())
+                
                 subject_cache = check_keys_in_dict (NGS_run_cache['F_ST'], [sample[0], sample[1], gene])
-                    
-                for f1, f2 in product (data[compartments[0]], data[compartments[1]]):
-                    pair_tag = "%s|%s" % ((f1, f2) if f1 < f2  else (f2, f1))
-                    if pair_tag not in subject_cache:
-                        #console.log ([[[f1, compartments[0]], [f2, compartments[1]]],pair_tag,subject_cache])
-                        task_queue.put ([[[f1, compartments[0]], [f2, compartments[1]]],pair_tag,subject_cache])
-                        #subject_cache [pair_tag] = check_compartmenalization ([[f1, compartments[0]], [f2, compartments[1]]], 2)
-                    #else:
-                    #    print (subject_cache[pair_tag])
+                                
+                                
+                for comp1, comp2 in combinations (compartments, 2):
+                    for f1, f2 in product (data[comp1], data[comp2]):
+                        pair_tag = "%s|%s" % ((f1, f2) if f1 < f2  else (f2, f1))
+                        if pair_tag not in subject_cache or subject_cache[pair_tag] is None or 'p' not in subject_cache[pair_tag]:
+                            task_queue.put ([[[f1, comp1], [f2, comp2]],pair_tag,subject_cache])
+                            #subject_cache [pair_tag] = check_compartmenalization ([[f1, compartments[0]], [f2, compartments[1]]], 2, subset = 0.2)
+                            #print (subject_cache[pair_tag])
+                            #task_queue.join()    
+                            #sys.exit (1)
+                        #else:
+                        #    print (subject_cache[pair_tag])
                         
                 
                     

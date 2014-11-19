@@ -91,6 +91,8 @@ def run_hyphy_div (node_to_run_on):
             
             infile = "\n".join ([i for m in alignment_files for i in m] + [out_file, "EOF"])
             
+            #print (infile)
+            
             print ("Running diversity estimates for %s (node %s)" % (out_file, node_to_run_on), file = sys.stderr)
             command =  ['/usr/bin/bpsh', str(node_to_run_on), '/usr/local/bin/HYPHYMP', hbf]
             process = subprocess.Popen (command, stdin = subprocess.PIPE, stderr = subprocess.PIPE, stdout = subprocess.PIPE) 
@@ -121,7 +123,7 @@ def check_missing_key_file (values, key):
 
 def refresh_json_file (path, object):
     with open (path, "w") as fh:
-        json.dump (object, fh, sort_keys=True, indent=2)
+        json.dump (object, fh, sort_keys=True, indent=1)
     
 def drill_down (d, redo_overall, task_queue, host_cache_path):
     for k, v in d.items():
@@ -137,6 +139,16 @@ def drill_down (d, redo_overall, task_queue, host_cache_path):
                             if set(v) in redo_overall or check_missing_key_file (v, 'rates.tsv'):
                                 #print (v)
                                 task_queue.put ([v, host_cache_path])
+                            else:
+                                redo_me = False
+                                with open (v['rates.tsv']) as fh:
+                                    lines = fh.readlines()
+                                    if len (lines) != len (v):
+                                        redo_me = True
+                                        #print (v, lines)
+                                if redo_me:
+                                    print ('Redoing %s because it has the wrong number of lines' % v['rates.tsv'], file = sys.stderr)
+                                    task_queue.put ([v, host_cache_path])    
                         break
                 break
                     

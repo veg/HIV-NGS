@@ -111,8 +111,8 @@ def main (ngs_cache, pairwise_cache, csv_writer, short_format):
             '''   
             
             non_null = [k for k in ratio.values() if k is not None]
-            if csv_writer is not None and len (non_null) > 2 and len ([k for k in non_null if k >= 0.5])>= 2:
-                csv_writer.writerow (['|'.join ([t[0],aeh_time (t[2])]), '|'.join ([t[1],aeh_time (t[3])]), 0.01499999])      
+            if csv_writer is not None:
+                csv_writer.writerow (['|'.join ([t[0],aeh_time (t[2])]), '|'.join ([t[1],aeh_time (t[3])]), 0.01499999 if len (non_null) > 2 and len ([k for k in non_null if k >= 0.5])>= 2 else 0.05])      
             
             #print (ratio)
                 
