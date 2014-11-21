@@ -1,7 +1,7 @@
 import os, argparse, re, sys, datetime
 import subprocess, time, csv
 import datetime, shutil, json, operator
-from os.path import join, splitext, isfile
+from os.path import join, splitext, isfile, split
 from Bio import SeqIO, AlignIO
 from copy import copy
 from scipy import stats
@@ -180,7 +180,21 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         
                                                   
                     if ci[0] is not None:    
-                        row.append ("-".join([str (k) for k in ci[0]]))
+                        
+                        if 'overall_region' in data:
+                            files_to_copy.append (data['overall_region'][1])
+                            spanned_region = "-".join([str (k) for k in ci[0]])
+                            
+                            cell_entry = {'text' : spanned_region,
+                                          'link' : join(dir_name,split(data['overall_region'][1])[1]),
+                                          'target' : dir_name + "_" + spanned_region + ".fas"}
+                                          
+                            #print (cell_entry)
+                            
+                            row.append (cell_entry)
+                        else:
+                            row.append ("-".join([str (k) for k in ci[0]]))
+                           
                         row.append (ci[1]['median'])
                     
                         files_to_copy.append (data['tn93_json'])
@@ -192,6 +206,8 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         row.append (tn93_dist*100.)    
                         
                         files_to_copy.append (data['region_merged_processed'])
+                        
+                        
                         with open (files_to_copy[-1]) as fh:
                             current_step = "Loading %s " %  files_to_copy[-1]
                             diversity = json.load (fh)
