@@ -614,7 +614,7 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
     non_gene_keys = set (('id','in_fasta','in_qual','patient_id','compartment','filtered_fastq','replicate','sample_date'))                 
 
     if os.path.exists(cache_file):
-        with open (cache_file, "rw") as fh:
+        with open (cache_file, "w") as fh:
             NGS_run_cache = json.load (fh)
     else:
         NGS_run_cache = {}
