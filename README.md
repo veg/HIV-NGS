@@ -28,4 +28,10 @@ The first step is to run directoryscanner.py on the directory containing the dat
 
     $ cd /data/NGS-DATA/
     $ mkdir results
-    $ python3 /opt/NGSpipeline/python/directoryscanner.py -i `pwd` -r `pwd` -c `pwd`/results/cache.json -p -d -n 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+    $ python3 /opt/NGSpipeline/python/directoryscanner.py -i `pwd` -r `pwd` -c `pwd`/results/ds-cache.json -p -d -n 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+
+3 - Intra Host Evolution
+
+Once the data have been processed with directoryscanner.py, we run intra_host_evolution.py, still from the NGS-DATA directory
+
+    $ python3 /opt/NGSpipeline/python/directoryscanner.py -i `pwd`/results/ds-cache -c `pwd`/results/ihe-cache.json -p -r
