@@ -192,7 +192,7 @@ def multinomial_filter (in_path, out_path, node):
     try:
         print ("Running multinomial filter on %s (node = %d) " % (in_path, node), file = sys.stderr)
         #-t 0.005 -p 0.999999 -f results/Ionxpress020/filtered.msa -j results/Ionxpress020/rates.json results/Ionxpress020/aligned.msa
-        subprocess.check_call (['/usr/bin/bpsh', str(node), '/home/aaylward/HIV-NGS/julia/mcmc.jl', '-t', '0.005', '-p', '0.999', '-f', filtered_out, '-j', json_out, in_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
+        subprocess.check_call (['/usr/bin/bpsh', str(node), os.path.join (path_to_this_file, "../julia/mcmc.jl"), '-t', '0.005', '-p', '0.999', '-f', filtered_out, '-j', json_out, in_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
     except subprocess.CalledProcessError as e:
         print ('ERROR: multinomial filter call failed',e,file = sys.stderr)
         return None, None
