@@ -1,3 +1,12 @@
+#------------------------------------------------------------------------------#
+#                             directoryscanner.py                              #
+#------------------------------------------------------------------------------#
+
+
+
+
+# First, import dependencies
+
 import os, argparse, re, sys
 import subprocess, time, csv
 import datetime, shutil, json, operator, hashlib
@@ -10,6 +19,10 @@ import ngs_task_runners as ntr
 from itertools import product, combinations
 
 
+
+
+# Declare global variables
+
 global previous_run_cache
 global threading_lock
 global task_queue
@@ -17,32 +30,74 @@ global force_diversity_estimation
 
 
 
+#------------------------------------------------------------------------------#
+#                          Initialize some variables                           #
+#------------------------------------------------------------------------------#
+
+# check_file_paths appears later in the multinomial_filter function.
+# check_file_paths_diversity appears later in the functions 
+# collapse_translate_reads, count_collapsed_reads, extract_diagnostic_region, 
+# and collapse_diagnostic_region. path_to_this_file is the path to the
+# directory containing directoryscanner.py.
 
 check_file_paths = True
 check_file_paths_diversity = True
 path_to_this_file = os.path.dirname(os.path.realpath(__file__))
 
+# applying ngs_task_runners.set_cache_flags sets check_file_paths and 
+# check_file_paths_diversity as global variables.
 
 ntr.set_cache_flags (check_file_paths, check_file_paths_diversity)
+
+# known_refs is a list of paths to reference files for the genes indicated in 
+# the known_genes list, below. These references will be used for aligning 
+# codons later. Reference sequences are accessed during handle_a_gene, for 
+# alignment and for updating the analysis cache. known_refs and known_genes are
+# used early in the main script to check that all of the input genes are 
+# included in known_genes. genes is an empty list to be filled by the argument
+# parser.
 
 known_refs  = [os.path.normpath(os.path.join (path_to_this_file, k)) for k in ['../data/rt.fas','../data/gag_p24.fas','../data/env_C2V5.fas', '../data/pr.fas', '../data/hcv1bcore.fas']]
 known_genes = ['rt','gag', 'env', 'pr', 'hcv1bcore']
 genes       = []
 
+# cache_file is a file storing cached information from update_global_record, 
+# compartmentalization_handler, and the main script. It is initialized here as 
+# an empty string to be filled by the argument parser. dthandler is used during
+# json dumps to the cache file. nodes_to_run_on is a list of nodes to run on,
+# initialized here as an empty list to be filled by the argument parser.
+
 cache_file = ""
 dthandler = lambda obj: obj.isoformat() if isinstance(obj, datetime.datetime) else None  
 nodes_to_run_on = []
 
+# spans is initialized here as an empty list to be filled by the argument 
+# parser. handle_a_gene iterates on spans when calling
+# extract_diagnostic_region. window is used as a constant by
+# extract_and_collapse_well_covered_region as an argument to 
+# extract_diagnostic_region. stride is used as a constant when updating spans.
+
 spans = []
 window   = 210
 stride   = 30
-    
+
+# force_diversity_estimation is a toggle for various steps in handling the 
+# results list. force_qfilt_rerun causes qfilt to be run automatically, 
+# regardless of whether filtered_fastq is in NGS_run_cache.
+
 force_diversity_estimation = False
 force_qfilt_rerun           = False
 
+
+
+
+#------------------------------------------------------------------------------#
+#                              define functions                                #
+#------------------------------------------------------------------------------#
+
 ### TASK RUNNERS ###
 
-
+# Convert sff to FASTQ
 
 def run_sff (base_path, results_path):
     print ("Converting sff to FASTQ on %s " % base_path, file = sys.stderr)
@@ -55,12 +110,19 @@ def run_sff (base_path, results_path):
             print ('ERROR: SFF conversion failed',e,file = sys.stderr)
             return None
         return results_path
+        
+# Apply qfilt
 
 def run_qfilt (in_path, in_qual, results_path, status_path):
     print ("Running qfilt on %s saving to %s" % (in_path, results_path), file = sys.stderr)
     with open (results_path, "w") as out_file:
         with open (status_path, "w") as json_file:
             try:
+                
+                # if an input quality file is given, pass the -F flag and the
+                # quality file to qfilt, if not pass the -Q flag and omit the 
+                # quality file.
+                
                 if in_qual is not None:
                     subprocess.check_call (['/usr/local/bin/qfilt', '-F', in_path , in_qual, '-q', '15', '-l', '50', '-P', '-', '-R', '8', '-j'], stdout = out_file, stderr = json_file) 
                 else:
@@ -77,8 +139,8 @@ def run_qfilt (in_path, in_qual, results_path, status_path):
                 return None
             return results_path
 
+# collapse translate reads into a single merged output protein
 
-    
 def collapse_translate_reads (in_path, out_path):
     merged_out = join (out_path, "merged.msa")
     translated_prot = join (out_path, "traslated.msa")
@@ -99,7 +161,9 @@ def collapse_translate_reads (in_path, out_path):
         print ('ERROR: Collapse/translate call failed failed',e,file = sys.stderr)
         return None
     return (merged_out, merged_out_prot)   
-    
+
+# count the collapsed read files
+
 def count_collapsed_reads (in_path, out_path, node):
     print ("Getting protein coverage info for %s (node %d) " % (in_path, node), file = sys.stderr)
     merged_json= join (out_path, "prot_coverage.json")
@@ -117,6 +181,8 @@ def count_collapsed_reads (in_path, out_path, node):
         return None
     return merged_json   
 
+# apply multinomial filter
+
 def multinomial_filter (in_path, out_path, node):
     filtered_out = join (out_path, "filtered.msa")
     json_out = join (out_path, "rates.json")
@@ -126,12 +192,13 @@ def multinomial_filter (in_path, out_path, node):
     try:
         print ("Running multinomial filter on %s (node = %d) " % (in_path, node), file = sys.stderr)
         #-t 0.005 -p 0.999999 -f results/Ionxpress020/filtered.msa -j results/Ionxpress020/rates.json results/Ionxpress020/aligned.msa
-        subprocess.check_call (['/usr/bin/bpsh', str(node),'/opt/NGSpipeline/julia/mcmc.jl', '-t', '0.005', '-p', '0.999', '-f', filtered_out, '-j', json_out, in_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
+        subprocess.check_call (['/usr/bin/bpsh', str(node), os.path.join (path_to_this_file, "../julia/mcmc.jl"), '-t', '0.005', '-p', '0.999', '-f', filtered_out, '-j', json_out, in_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
     except subprocess.CalledProcessError as e:
         print ('ERROR: multinomial filter call failed',e,file = sys.stderr)
         return None, None
     return filtered_out, json_out    
 
+# check compartmentalization using tn93
     
 def check_compartmenalization (in_paths, node, replicates = 100, subset = 0.2, min_overlap = 150):
     print ("Running compartmenalization tests on %s (node %d) " % (in_paths, node), file = sys.stderr)
@@ -173,6 +240,8 @@ def check_compartmenalization (in_paths, node, replicates = 100, subset = 0.2, m
 
     return baseline_json
 
+# extract diagnostic region 
+
 def extract_diagnostic_region (in_path, out_path, node, start = 0, end = 1000000, cov = 0.95):
     #print ("Extracting diagnostic region [%d-%d, coverage = %g] for %s (node %d) " % (start, end, cov, in_path, node), file = sys.stderr)
     merged_out = join (out_path, "region_%d-%d.msa" % (start, end))
@@ -188,6 +257,8 @@ def extract_diagnostic_region (in_path, out_path, node, start = 0, end = 1000000
         return None
     return merged_out      
     
+# collapse_diagnostic_region
+
 def collapse_diagnostic_region (in_path_list, out_path, node, overlap = 100, count = 32):
     result = {}
     for region, in_path in in_path_list.items():    
@@ -216,7 +287,9 @@ def collapse_diagnostic_region (in_path_list, out_path, node, overlap = 100, cou
                 raise
                 
     return result         
-    
+
+# load a merged file and find, extract, and collapse well covered regions
+
 def extract_and_collapse_well_covered_region (in_path, out_path, node, read_length = 200, min_coverage = 100, min_read_count = 10):
     merged_out = join (out_path, "prot_coverage.json")
     with open (merged_out) as fh:
@@ -255,6 +328,7 @@ def extract_and_collapse_well_covered_region (in_path, out_path, node, read_leng
                 
     return None
 
+# run tropism prediction
 
 def run_tropism_prediction (env_gene, out_path, node):
     result = {}
@@ -299,7 +373,8 @@ def run_tropism_prediction (env_gene, out_path, node):
         return {'R5' :  counts[-1] / total, 'X4' : counts[1] / total}
     
     return None
-    
+
+# process an extracted diagnostic region
 
 def process_diagnostic_region (in_path_list, out_path, node):
     result = {}
@@ -849,5 +924,7 @@ if __name__ == '__main__':
     retcode = main(args.input,  args.results, args.compartment, args.replicate, args.qfilt)
     
     sys.exit(retcode)
+
+
 
 
