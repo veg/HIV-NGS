@@ -49,4 +49,4 @@ Next we run pairwise_distances.py.
 Finally, we can use result_processor.py to produce web-ready output files.
 
     $ mkdir web-ready
-    $ python3 /opt/NGSpipeline/python/result_processor.py -o `pwd`/web-ready/ -j `pwd`/web-ready/results.json -c `pwd`/results/ds-cache.json -d `pwd`/results/ihe-cache.json -w `pwd`/results/pd-cache.json -p -r
+    $ python3 /opt/NGSpipeline/python/result_processor.py -o `pwd`/results/web-ready/ -j `pwd`/results/web-ready/results.json -c `pwd`/results/ds-cache.json -d `pwd`/results/ihe-cache.json -w `pwd`/results/pd-cache.json -p -r
