@@ -40,8 +40,13 @@ Once the data have been processed with directoryscanner.py, we run intra_host_ev
 
 2.3 - Pairwise Distances
 
-Next we run pairwise_distances.py and pairwise_distances_processor.py.
+Next we run pairwise_distances.py.
 
     $ python3 /opt/NGSpipeline/python/pairwise_distances.py -i `pwd`/results/ds-cache.json -c `pwd`/results/pd-cache.json
 
-    $ python3 /opt/NGSpipeline/python/pairwise_distances_processor.py -i `pwd`/results/ds-cache.json -c `pwd`/results/pd-cache.json -d `pwd`/results/pd-cache.csv
+3 - Postprocessing
+
+Finally, we can use result_processor.py to produce web-ready output files.
+
+    $ mkdir web-ready
+    $ python3 /opt/NGSpipeline/python/result_processor.py -o `pwd`/web-ready/ -j `pwd`/web-ready/plot.json -c `pwd`/results/ds-cache.json -d `pwd`/results/ihe-cache.json -w `pwd/results/pd-cache.json -p -r
