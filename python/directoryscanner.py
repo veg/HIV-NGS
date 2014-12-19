@@ -190,7 +190,7 @@ def collapse_translate_reads (in_path, out_path):
     translated_prot = join (out_path, "traslated.msa")
     merged_out_prot = join (out_path, "merged_prot.msa")
     
-    # Check that these paths exist.
+    # If these files already exist, return.
     
     if check_file_paths_diversity and os.path.exists (merged_out) and  os.path.exists (merged_out_prot):
         return (merged_out, merged_out_prot)  
@@ -232,8 +232,7 @@ def count_collapsed_reads (in_path, out_path, node):
     
     merged_json= join (out_path, "prot_coverage.json")
     
-    # Check that this file path exists, and load any .json cache that has
-    # already been written there.
+    # If the .json cache file already exists, load it.
 
     if check_file_paths_diversity and os.path.exists (merged_json):
         with open (merged_json) as fh:
@@ -263,24 +262,45 @@ def count_collapsed_reads (in_path, out_path, node):
 
 ### multinomial_filter ###
 
-# Apply a multinomial filter. This function takes as arguments 
+# Apply a multinomial filter. This function takes as arguments a path to
+# an input 'aligned' .msa file, a path to an output filtered.msa file, 
+# and a node to run on.
 
 def multinomial_filter (in_path, out_path, node):
+    
+    # Identify the output files.
+    
     filtered_out = join (out_path, "filtered.msa")
     json_out = join (out_path, "rates.json")
-
+   
+   # If these files already exist, return.
+   
     if check_file_paths and os.path.exists (filtered_out) and os.path.exists (json_out):
         return filtered_out, json_out
+        
+    # Use bpsh to apply the Julia script mcmc.jl to the input
+    # aligned.msa file
+        
     try:
         print ("Running multinomial filter on %s (node = %d) " % (in_path, node), file = sys.stderr)
         #-t 0.005 -p 0.999999 -f results/Ionxpress020/filtered.msa -j results/Ionxpress020/rates.json results/Ionxpress020/aligned.msa
         subprocess.check_call (['/usr/bin/bpsh', str(node), os.path.join (path_to_this_file, "../julia/mcmc.jl"), '-t', '0.005', '-p', '0.999', '-f', filtered_out, '-j', json_out, in_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
+        
+    # If an error occurs, say so.
+        
     except subprocess.CalledProcessError as e:
         print ('ERROR: multinomial filter call failed',e,file = sys.stderr)
         return None, None
+        
+    # Return the paths to the output filtered.msa and rates.json.
+        
     return filtered_out, json_out    
 
-# check compartmentalization using tn93
+
+
+### check_compartmentalization ###
+
+# This function uses tn93 to check compartmentalization. 
     
 def check_compartmenalization (in_paths, node, replicates = 100, subset = 0.2, min_overlap = 150):
     print ("Running compartmenalization tests on %s (node %d) " % (in_paths, node), file = sys.stderr)
