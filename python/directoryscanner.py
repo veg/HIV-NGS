@@ -156,7 +156,8 @@ def run_qfilt (in_path, in_qual, results_path, status_path):
                 else:
                     subprocess.check_call (['/usr/local/bin/qfilt', '-Q', in_path , '-q', '15', '-l', '50', '-P', '-', '-j', '-R', '8'], stdout = out_file, stderr = json_file) 
             
-            # If an error occurs, say so and return the path to the output file if possible.
+            # If an error occurs, say so and return the path to the output file if
+            # possible.
             
             except subprocess.CalledProcessError as e:
                 print ('ERROR: QFILT call failed failed',e,file = sys.stderr)
@@ -177,47 +178,90 @@ def run_qfilt (in_path, in_qual, results_path, status_path):
 
 ### collapse_translate_reads ###
 
-# collapse translate reads into a single merged output prot file.
+# Collapse translate reads into three .msa files. This function takes as arguments
+# a path to a directory containing the input files and a path to a directory in
+# which the output files will be written.
 
 def collapse_translate_reads (in_path, out_path):
+    
+    # Identify the paths to the three output files.
+    
     merged_out = join (out_path, "merged.msa")
     translated_prot = join (out_path, "traslated.msa")
     merged_out_prot = join (out_path, "merged_prot.msa")
+    
+    # Check that these paths exist.
     
     if check_file_paths_diversity and os.path.exists (merged_out) and  os.path.exists (merged_out_prot):
         return (merged_out, merged_out_prot)  
     
     print ("Collapsing and translating reads %s " % in_path, file = sys.stderr)
-
+    
+    # Call the seqmerge and translate utilities on the input files, then call
+    # seqmerge on the translate utility's output.
+    
     try:
         subprocess.check_call (['/opt/share/python3.3/seqmerge', in_path, merged_out], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
         subprocess.check_call (['/opt/share/python3.3/translate', in_path, translated_prot], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
         subprocess.check_call (['/opt/share/python3.3/seqmerge', translated_prot, merged_out_prot], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
         os.remove (translated_prot)
-         
+    
+    # If an error occurs, say so.
+    
     except subprocess.CalledProcessError as e:
         print ('ERROR: Collapse/translate call failed failed',e,file = sys.stderr)
         return None
+        
+    # Return the paths to the merged output files.
+    
     return (merged_out, merged_out_prot)   
 
-# count the collapsed read files
+
+
+
+### count_collapsed_reads ###
+
+# Count the collapsed read files. This function takes as agruments a path to
+# a directory containing the collapsed files, a path to a directory in which
+# a prot coverage .json file will be recorded, and a node to run on.
 
 def count_collapsed_reads (in_path, out_path, node):
     print ("Getting protein coverage info for %s (node %d) " % (in_path, node), file = sys.stderr)
+    
+    # Identify the output file.
+    
     merged_json= join (out_path, "prot_coverage.json")
+    
+    # Check that this file path exists, and load any .json cache that has
+    # already been written there.
 
     if check_file_paths_diversity and os.path.exists (merged_json):
         with open (merged_json) as fh:
             if len(json.load(fh)) > 0: 
                 print ("[CACHED]")
                 return merged_json 
+                
+    # Use bpsh to call the seqcoverage utility on the coverage .json file,
+    # using the selected node. 
+    
     try:
         #print (' '.join(['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path]))
         subprocess.check_call (['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
+        
+    # If an error occurs, say so.
+    
     except subprocess.CalledProcessError as e:
         print ('ERROR: Protein coverage call failed',e,file = sys.stderr)
         return None
+        
+    # Return the path to the .json cache file.
+    
     return merged_json   
+
+
+
+
+### multinomial_filter ###
 
 # apply multinomial filter
 
