@@ -92,42 +92,72 @@ force_qfilt_rerun           = False
 
 
 #------------------------------------------------------------------------------#
-#                              define functions                                #
+#                              Define Functions                                #
 #------------------------------------------------------------------------------#
 
-### TASK RUNNERS ###
+#------------------------------- Task Runners ---------------------------------#
 
-# Convert sff to FASTQ
+### run_sff ###
+
+# Convert sff to FASTQ. This function takes a path to an input .sff file and a 
+# path to an output .fastq file as arguments. At present it is not used in the
+# main script.
 
 def run_sff (base_path, results_path):
     print ("Converting sff to FASTQ on %s " % base_path, file = sys.stderr)
+    
+    # Open and write to the output .fastq file.
+    
     with open (results_path, "w") as out_file:
+        
+        # Call the sff2fastq utility on the input .sff file and write to the
+        #output .fasta.
+        
         try:
             subprocess.check_call (['/usr/local/bin/sff2fastq', '-o', results_path, base_path]) 
+            
+        # If an error occurs, say so and return the path to the output file if 
+        # possible.
+        
         except subprocess.CalledProcessError as e:
             if os.path.exists (results_path):
                 return results_path
             print ('ERROR: SFF conversion failed',e,file = sys.stderr)
             return None
+            
+        # Return the path to the output file.
+            
         return results_path
+
+
+
         
-# Apply qfilt
+### run_qfilt ###
+
+# Apply qfilt to remove or split reads with low quality scores. This function
+# takes as its arguments either paths to an input .fna and .qual pair or a 
+# path to a single input .fastq file, along with a path to an output file
+# and an error file.
 
 def run_qfilt (in_path, in_qual, results_path, status_path):
     print ("Running qfilt on %s saving to %s" % (in_path, results_path), file = sys.stderr)
+    
+    # Open and write to the output and error files.
+    
     with open (results_path, "w") as out_file:
         with open (status_path, "w") as json_file:
+            
+            # If an input .fna and .qual pair is given, apply the qfilt utility with
+            # the -F flag. If an input .fastq is given, apply qfilt with the -Q flag.
+            
             try:
-                
-                # if an input quality file is given, pass the -F flag and the
-                # quality file to qfilt, if not pass the -Q flag and omit the 
-                # quality file.
-                
                 if in_qual is not None:
                     subprocess.check_call (['/usr/local/bin/qfilt', '-F', in_path , in_qual, '-q', '15', '-l', '50', '-P', '-', '-R', '8', '-j'], stdout = out_file, stderr = json_file) 
                 else:
                     subprocess.check_call (['/usr/local/bin/qfilt', '-Q', in_path , '-q', '15', '-l', '50', '-P', '-', '-j', '-R', '8'], stdout = out_file, stderr = json_file) 
-                
+            
+            # If an error occurs, say so and return the path to the output file if possible.
+            
             except subprocess.CalledProcessError as e:
                 print ('ERROR: QFILT call failed failed',e,file = sys.stderr)
                 try:
@@ -137,9 +167,17 @@ def run_qfilt (in_path, in_qual, results_path, status_path):
                     pass
                     
                 return None
+            
+            # Return the path to the output file.    
+            
             return results_path
 
-# collapse translate reads into a single merged output protein
+
+
+
+### collapse_translate_reads ###
+
+# collapse translate reads into a single merged output prot file.
 
 def collapse_translate_reads (in_path, out_path):
     merged_out = join (out_path, "merged.msa")
@@ -924,7 +962,3 @@ if __name__ == '__main__':
     retcode = main(args.input,  args.results, args.compartment, args.replicate, args.qfilt)
     
     sys.exit(retcode)
-
-
-
-
