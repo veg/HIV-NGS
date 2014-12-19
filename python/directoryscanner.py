@@ -263,7 +263,7 @@ def count_collapsed_reads (in_path, out_path, node):
 
 ### multinomial_filter ###
 
-# apply multinomial filter
+# Apply a multinomial filter. This function takes as arguments 
 
 def multinomial_filter (in_path, out_path, node):
     filtered_out = join (out_path, "filtered.msa")
