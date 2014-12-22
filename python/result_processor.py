@@ -10,6 +10,8 @@ import math
 
 DRAMs = {}
 
+_clone_name_replacement = re.compile ("^cluster_[0-9]+")
+
 def parse_a_date (sample_date):
     try:
         return datetime.datetime.strptime(sample_date, "%Y%m%d").strftime ("%Y/%m/%d")
@@ -168,21 +170,21 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     merged_msa_to_info [data['merged_msa']] = [pid, date, gene, compartment, replicate]
                     current_step = "Checking for merged_json"
                                     
-                    files_to_copy = [data['merged_json']]
+                    files_to_copy = [[data['merged_json'],None]]
                     # read coverage info
                     
                     ci = None
                     
                     current_step = "Opening merged_json"
-                    with open (files_to_copy[0]) as fh: 
-                        current_step = "Loading %s" % files_to_copy[0]
+                    with open (files_to_copy[0][0]) as fh: 
+                        current_step = "Loading %s" % files_to_copy[0][0]
                         ci = coverage_info(json.load (fh))
                         
                                                   
                     if ci[0] is not None:    
                         
                         if 'overall_region' in data:
-                            files_to_copy.append (data['overall_region'][1])
+                            files_to_copy.append ([data['overall_region'][1],dir_name])
                             spanned_region = "-".join([str (k) for k in ci[0]])
                             
                             cell_entry = {'text' : spanned_region,
@@ -197,19 +199,19 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                            
                         row.append (ci[1]['median'])
                     
-                        files_to_copy.append (data['tn93_json'])
-                        with open (files_to_copy[-1]) as fh:
-                            current_step = "Loading %s" % files_to_copy[-1]
+                        files_to_copy.append ([data['tn93_json'], None])
+                        with open (files_to_copy[-1][0]) as fh:
+                            current_step = "Loading %s" % files_to_copy[-1][0]
                             tn93 = json.load (fh)
                         
                         tn93_dist = tn93['Mean distance']
                         row.append (tn93_dist*100.)    
                         
-                        files_to_copy.append (data['region_merged_processed'])
+                        files_to_copy.append ([data['region_merged_processed'], None])
                         
                         
-                        with open (files_to_copy[-1]) as fh:
-                            current_step = "Loading %s " %  files_to_copy[-1]
+                        with open (files_to_copy[-1][0]) as fh:
+                            current_step = "Loading %s " %  files_to_copy[-1][0]
                             diversity = json.load (fh)
                                  
                     
@@ -227,9 +229,9 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         else:
                             row.append ('N/A')
 
-                        files_to_copy.append (data['json_rates'])
-                        with open (files_to_copy[-1]) as fh:
-                            current_step = "Loading json_rates %s" % files_to_copy[-1]
+                        files_to_copy.append ([data['json_rates'], None])
+                        with open (files_to_copy[-1][0]) as fh:
+                            current_step = "Loading json_rates %s" % files_to_copy[-1][0]
                             json.load (fh)
                                  
                         #print (row)         
@@ -282,7 +284,16 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     os.makedirs (result_path)
             
                 for file in files_to_copy:
-                    shutil.copy (file, result_path)
+                    if file[1] is not None:
+                        with open (join(result_path,split(file[0])[1]), "w") as oh:
+                             with open (file[0], 'r') as fh:
+                                for record in SeqIO.parse (fh, "fasta"):
+                                    print (">%s\n%s\n" % (re.sub(_clone_name_replacement, file[1], record.name), record.seq), file = oh)
+                               
+                    
+                    else:
+                        shutil.copy (file[0], result_path)
+                    
                     
                 row.append (dir_name)
                 #print (dir_name, row)
