@@ -31,6 +31,7 @@ def describe_vector (vector):
     return {'count': l, 'min': vector[0], 'max': vector[-1], 'mean': sum(vector)/l, 'median':  vector [l//2] if l % 2 == 1 else 0.5*(vector[l//2-1]+vector[l//2]), "IQR": [vector [l//4], vector [(3*l)//4]] }
 
 
+
 def coverage_info (coverage, min_cov = 500):
     ranges = sorted([int (k) for k in coverage])
 
@@ -63,12 +64,14 @@ def diversity_info (div, tag):
         return None
 
 
-def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_info, pairwise_distance_info, short, ignore_replicate):
+def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_info, pairwise_distance_info, short, ignore_replicate, minimum_coverage = 500):
     
     has_tropism = False
     
-    processed    = {'columns': ['PID','Date','Gene','Region','Median Coverage','Nucleotide diversity, %','Syn.diversity, %', 'Non-syn. diversity, %' ,'X4 tropism, %',''], 
-                      'data' : [] }
+    processed    = {'columns': ['PID','Date','Gene','Region','Coverage','Reads (clones)','Diversity, %','S, %', 'NS, %' ,'X4, %',''], 
+                    'annotations' : ['Patient ID', 'Sample Date', 'Reference Gene', 'Maximal contiguous region bracketed by positions with at least %d covering reads' % minimum_coverage, 'Median per base coverage', 'Total Mapped Reads (% unique, i.e. is not a exact match to another read)', 
+                                     'Mean pairwise nucelotide diversity', 'Mean pairwise synonymous diversity (per nucleotide site)', 'Mean pairwise non-synonymous diversity (per nucleotide site)', 'Percent of reads predicted to be X4- or dual- tropic (IDEPI, env only)', ''],
+                    'data' : [] }
                       
     if intrahost_info is not None:
         processed ['intrahost'] = {}
@@ -79,8 +82,10 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
     
     if has_replicate:
         processed['columns'].insert (3, 'Replicate')
+        processed['annotations'].insert (3, 'Replicate ID')
     if has_compartment:
         processed['columns'].insert (3, 'Compartment')
+        processed['annotations'].insert (3, 'Source compartment for this sample')
         
     if has_fst:
         processed['F_ST'] = {}
@@ -178,7 +183,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     current_step = "Opening merged_json"
                     with open (files_to_copy[0][0]) as fh: 
                         current_step = "Loading %s" % files_to_copy[0][0]
-                        ci = coverage_info(json.load (fh))
+                        ci = coverage_info(json.load (fh), minimum_coverage)
                         
                                                   
                     if ci[0] is not None:    
@@ -198,6 +203,12 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                             row.append ("-".join([str (k) for k in ci[0]]))
                            
                         row.append (ci[1]['median'])
+                        
+                        try:
+                            row.append ({'text' : '%d (%d)' % (data['merged_counts']['total'], data['merged_counts']['unique']),
+                                         'pop-up' : item['read_stats']})
+                        except (KeyError, AttributeError, TypeError, ValueError) as e:
+                            row.append (None)
                     
                         files_to_copy.append ([data['tn93_json'], None])
                         with open (files_to_copy[-1][0]) as fh:
@@ -225,9 +236,10 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         if 'tropism' in data and data['tropism']:
                             current_step = "Copying tropism data"
                             row.append (data['tropism']['X4'] * 100.)
+                            #print (data['tropism']['X4'] * 100.)
                             has_tropism = True
                         else:
-                            row.append ('N/A')
+                            row.append ("No data")
 
                         files_to_copy.append ([data['json_rates'], None])
                         with open (files_to_copy[-1][0]) as fh:
@@ -269,7 +281,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                                 #print ("Failing key %s (%s)" % (gene, str (e)), file = sys.stderr)
                                 pass
                     else:
-                        row.extend ([None,ci[1]['median'],None,None,None,None])
+                        row.extend ([None,ci[1]['median'],None,None,None,None,None])
                     
                     
                 except (KeyError, AttributeError, TypeError, ValueError) as e:
@@ -496,6 +508,14 @@ if __name__ == '__main__':
     )    
 
     parser.add_argument(
+        '-v', '--coverage',
+        help='minimum coverage for contiguous blocks',
+        type=int,
+        required = False,
+        default=500
+    )
+
+    parser.add_argument(
         '-s', '--short',
         help='assume that pairwise results are keyed on id-id-gene (otherwise path|path)',
         action = 'store_true',
@@ -518,7 +538,7 @@ if __name__ == '__main__':
     #loadDRM ("Scores_NRTI.txt", "RT", "NRTI")
     #loadDRM ("Scores_NNRTI.txt", "RT", "NNRTI")
         
-    retcode = main(json.load (args.cache), args.json, args.output, args.compartment, args.replicate, json.load(args.diversity) if args.diversity is not None else None , json.load(args.pairwise) if args.pairwise is not None else None, args.short, args.ignore_replicate)
+    retcode = main(json.load (args.cache), args.json, args.output, args.compartment, args.replicate, json.load(args.diversity) if args.diversity is not None else None , json.load(args.pairwise) if args.pairwise is not None else None, args.short, args.ignore_replicate, args.coverage)
     
     sys.exit(retcode)
 

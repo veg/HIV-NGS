@@ -167,19 +167,24 @@ def collapse_translate_reads (in_path, out_path):
 def count_collapsed_reads (in_path, out_path, node):
     print ("Getting protein coverage info for %s (node %d) " % (in_path, node), file = sys.stderr)
     merged_json= join (out_path, "prot_coverage.json")
-
+    '''
     if check_file_paths_diversity and os.path.exists (merged_json):
         with open (merged_json) as fh:
             if len(json.load(fh)) > 0: 
                 print ("[CACHED]")
                 return merged_json 
+    '''
     try:
         #print (' '.join(['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path]))
-        subprocess.check_call (['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
+        process = subprocess.Popen (['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path], stdout = subprocess.DEVNULL, stderr = subprocess.PIPE, stdin = subprocess.DEVNULL, universal_newlines = True) 
+        ignored, json_out = process.communicate ()
+        json_out = json.loads (json_out);
+        #print (ignored, json_out)
+
     except subprocess.CalledProcessError as e:
         print ('ERROR: Protein coverage call failed',e,file = sys.stderr)
-        return None
-    return merged_json   
+        return (None, None)
+    return (merged_json, json_out)
 
 # apply multinomial filter
 
@@ -523,13 +528,13 @@ def handle_a_gene (base_path, file_results_dir_overall, i, gene, analysis_cache,
             update_json = set_update_json (file_results_dir, "'region_msa' not in analysis_cache")
 
     if 'merged_msa_prot' in analysis_cache and analysis_cache ['merged_msa_prot'] is not None:
-        if 'merged_json' not in analysis_cache:
-            analysis_cache ['merged_json'] = count_collapsed_reads (analysis_cache ['merged_msa_prot'], file_results_dir, node)
+        if 'merged_json' not in analysis_cache or 'merged_counts' not in analysis_cache:
+            analysis_cache ['merged_json'], analysis_cache ['merged_counts'] = count_collapsed_reads (analysis_cache ['merged_msa_prot'], file_results_dir, node)
             update_json = set_update_json (base_path, "'merged_json' not in analysis_cache")
         else:
             with open (analysis_cache ['merged_json'], 'r') as fh:
                 if len(json.load (fh)) == 0:
-                    analysis_cache ['merged_json'] = count_collapsed_reads (analysis_cache ['merged_msa_prot'], file_results_dir, node)
+                    analysis_cache ['merged_json'], analysis_cache ['merged_counts'] = count_collapsed_reads (analysis_cache ['merged_msa_prot'], file_results_dir, node)
                     update_json = set_update_json (file_results_dir, "len(json.load (fh)) == 0")
                     
             
@@ -742,8 +747,9 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
                 if 'filtered_fastq' in NGS_run_cache [base_path] and NGS_run_cache [base_path]['filtered_fastq'] is not None:
                     try:
                         with open (join (file_results_dir_overall, 'qfilt.json')) as fh: 
-                            js = json.load (fh)['run summary']['original read length distribution:']
-                            median_read_length = max (100, js['mean'] - js['standard deviation'])
+                            js = json.load (fh)
+                            median_read_length = max (100, js['run summary']['original read length distribution:']['mean'] - js['run summary']['original read length distribution:']['standard deviation'])
+                            NGS_run_cache [base_path] ['read_stats'] = js['run summary']
                     except:
                         pass
                         
