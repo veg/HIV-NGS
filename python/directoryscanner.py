@@ -568,7 +568,10 @@ def handle_a_gene (base_path, file_results_dir_overall, i, gene, analysis_cache,
     file_results_dir = os.path.join (file_results_dir_overall, gene)
 
     if not os.path.exists (file_results_dir):
-        os.makedirs (file_results_dir) 
+        try: 
+            os.makedirs (file_results_dir) 
+        except FileExistsError:
+            pass
         
     if i == 0:
         if 'filtered_fastq' in NGS_run_cache [base_path] and NGS_run_cache [base_path] ['filtered_fastq'] is not None:
@@ -802,7 +805,10 @@ def main (dir, results_dir, has_compartment_data, has_replicate_counts, scan_q_f
                                 
                                 
                 if not os.path.exists (file_results_dir_overall):
-                    os.makedirs (file_results_dir_overall) 
+                    try:
+                        os.makedirs (file_results_dir_overall) 
+                    except FileExistsError:
+                        pass
 
                 if 'in_fasta' not in NGS_run_cache [base_path] and 'in_fastq' not in NGS_run_cache [base_path]:
                     NGS_run_cache [base_path]['md5'] = hash_file (base_file)                                         
