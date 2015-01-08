@@ -1,4 +1,4 @@
-#!/usr/bin/env /opt/julia-040f3ab6b7/bin/julia
+#!/usr/bin/env /opt/julia-0.2.0-rc1/
 
 using ArgParse
 using FastaIO
