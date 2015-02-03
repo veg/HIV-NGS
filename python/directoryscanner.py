@@ -100,7 +100,13 @@ FORCE_QFULT_RERUN = False
 #                              Define Functions                                #
 #------------------------------------------------------------------------------#
 
+
+
+
 #------------------------------- Task Runners ---------------------------------#
+
+
+
 
 ### run_sff ###
 
@@ -312,7 +318,7 @@ def multinomial_filter(in_path, out_path, node):
     filtered_out = join(out_path, "filtered.msa")
     json_out = join(out_path, "rates.json")
 
-   # If these files already exist, return.
+    # If these files already exist, return.
 
     if CHECK_FILE_PATHS and os.path.exists(filtered_out) and os.path.exists(json_out):
         return filtered_out, json_out
@@ -347,19 +353,30 @@ def multinomial_filter(in_path, out_path, node):
 
 
 
+
 ### check_compartmentalization ###
 
-# This function uses tn93 to check compartmentalization.
+# This function uses tn93 to check compartmentalization. This function takes as
+# arguments a string containg two in-paths, a node to run on, and some optional
+# parameters.
 
 def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_overlap=150):
     print(
         "Running compartmenalization tests on %s(node %d) " % (in_paths, node),
         file=sys.stderr
     )
+
+    # Initialize some variables.
+
     baseline_json = None
     out = ''
     json_out = ''
+
     try:
+
+        # Use bpsh to apply tn93 to the two input files, generating the initial
+        # F_ST.
+
         status = 'Running initial F_ST'
         process = subprocess.Popen(
             [
@@ -370,12 +387,25 @@ def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_ov
             stdin=subprocess.DEVNULL, stderr=subprocess.PIPE,
             stdout=subprocess.PIPE, universal_newlines=True
         )
+
+        # Record the results.
+
         out, json_out = process.communicate()
         baseline_json = json.loads(json_out)
         baseline = baseline_json['F_ST']
         #print("F_ST baseline = %g" % baseline)
+
+        # Initialize the counter p_v
+
         p_v = 0
+
+        # For each replicate,
+
         for k in range(replicates):
+
+            # Use bpsh to apply tn93 to the two input files, generating info 
+            # for the current replicate.
+
             status = 'Running replicate %d' % k
             process = subprocess.Popen(
                 [
@@ -386,20 +416,35 @@ def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_ov
                 stdin=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE, universal_newlines=True
             )
+
+            # Record the results.
+
             out, json_out = process.communicate()
             sim_fst = json.loads(json_out)['F_ST']
+
+            # Advance p_v
+
             p_v += 1 if sim_fst >= baseline else 0
             #print("%d %g %g" % (k, p_v/replicates, sim_fst))
 
+        # Use p_v to compute the proportion of replicates for which sim_fst 
+        # is greater than baseline.
+
         p_v = (p_v+1.)/(replicates+1.)
+
+        # Record the baseline info.
 
         baseline_json = {in_paths[0][1] : baseline_json['Histogram File 1'],
                          in_paths[1][1] : baseline_json['Histogram File 2'],
                          'Between': baseline_json['Histogram Between'],
                          'p' : p_v,
                          'f_st' : baseline}
+ 
+        # Return baseline info.
 
         return baseline_json
+
+    # If an error or exception occurs, say so.
 
     except subprocess.CalledProcessError as err:
         print(
@@ -417,7 +462,14 @@ def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_ov
 
     return baseline_json
 
-# extract diagnostic region
+
+
+
+### extract_diagnostic_region ###
+
+# Extract a diagnostic region from a .msa file. This function takes as arguments
+# a path to an existing .msa file, an output path to which to write, a node to
+# run on, and some optional parameters.
 
 def extract_diagnostic_region(in_path, out_path, node, start=0, end=1000000, cov=0.95):
     #print(
@@ -425,11 +477,20 @@ def extract_diagnostic_region(in_path, out_path, node, start=0, end=1000000, cov
         #% (start, end, cov, in_path, node),
         #file=sys.stderr
     #)
+
+    # Construct the path to which the output file will be written.
+
     merged_out = join(out_path, "region_%d-%d.msa" % (start, end))
+
+    # If the path already exists, return.
 
     if CHECK_FILE_PATHS_DIVERSITY and os.path.exists(merged_out) and not FORCE_DIVERSITY_ESTIMATION:
         return merged_out
+
     try:
+
+        # Use bpsh to apply selectreads to the input .msa file.
+
         call_array = [
             '/usr/bin/bpsh', str(node), '/usr/local/bin/selectreads', '-o',
             merged_out, '-a', 'gaponly', '-s', str(start), '-e', str(end), '-c',
@@ -440,22 +501,58 @@ def extract_diagnostic_region(in_path, out_path, node, start=0, end=1000000, cov
             call_array, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
+
+    # If an error occurs, say so and return.
+
     except subprocess.CalledProcessError as err:
         print('ERROR: Diagnostic region extract call failed', err, file=sys.stderr)
         return None
+
+    # Return the output path.
+
     return merged_out
 
-# collapse_diagnostic_region
+
+
+
+### collapse_diagnostic_region ###
+
+# Collapse several diagnostic region files into a single file. This function
+# takes as arguments a list of paths to .msa files, and output path to which to
+# write, a node to run one, and some optional parameters.
 
 def collapse_diagnostic_region(in_path_list, out_path, node, overlap=100, count=32):
+
+    # Initialize the result dictionary.
+
     result = {}
+
+    # For each input file,
+
     for region, in_path in in_path_list.items():
+
+        # If the input file exists,
+
         if in_path is not None and os.path.exists(in_path) or FORCE_DIVERSITY_ESTIMATION:
+
+            # Construct the path to which the output file will be written.
+
             merged_out = join(out_path, "region_reduced_%s.msa" % region)
+
             try:
+
+                # If the output file already exists,
+
                 if CHECK_FILE_PATHS_DIVERSITY and os.path.exists(merged_out) and not FORCE_DIVERSITY_ESTIMATION:
+
+                    # Add it to the result dictionary and continue to the next 
+                    # input file.
+
                     result[region] = merged_out
                     continue
+
+                # Use bpsh to apply readreduce to the input file. 
+
                 print(
                     "Collapsing diagnostic region(overlap %d, count = %d) for %s(node %d) " % (overlap, count, in_path, node),
                     file=sys.stderr
@@ -471,12 +568,28 @@ def collapse_diagnostic_region(in_path_list, out_path, node, overlap=100, count=
                     stderr=subprocess.DEVNULL
                 )
                 #subprocess.check_call(call_array, stdout=subprocess.DEVNULL)
+
+                # If the output file is larger than zero bytes,
+
                 if os.stat(merged_out).st_size > 0:
+
+                    # Add its path to the result dictionary.
+
                     result[region] = merged_out
+
+                # Otherwise,
+
                 else:
+
+                    # Remove the file.
+
                     os.remove(merged_out)
 
+                # Remove the input file.
+
                 os.remove(in_path)
+
+            # If an error occurs, say so.
 
             except subprocess.CalledProcessError as err:
                 print(
@@ -487,35 +600,66 @@ def collapse_diagnostic_region(in_path_list, out_path, node, overlap=100, count=
             except:
                 raise
 
+    # Return the result dictionary.
+
     return result
 
-# load a merged file and find, extract, and collapse well covered regions
 
-def extract_and_collapse_well_covered_region(in_path, out_path, node, read_length=200, min_coverage=100):#, min_read_count=10):
+
+
+### extract_and_collapse_well_covered_region ###
+
+# Load a merged file and find, extract, and collapse well covered regions. This
+# function takes as arguments an path to an input .msa file, a path to which to
+# write an output file, a node to run on, and some optional parameters.
+
+def extract_and_collapse_well_covered_region(in_path, out_path, node, read_length=200, min_coverage=100): #, min_read_count=10):
+
+    # Open and load the prot_coverage.json file.
+
     merged_out = join(out_path, "prot_coverage.json")
     with open(merged_out) as fhh:
         coverage = json.load(fhh)
+
+        # Record positional coverage information and filter it by the minimum
+        # coverage parameter.
+
         positional_coverage = [
             [int(k), sum(v.values())] for k, v in coverage.items()
         ]
         positional_coverage = [
             k for k in positional_coverage if k[1] >= min_coverage
         ]
+
+        # If the recorded information is null, return.
+
         if len(positional_coverage) == 0:
             return None
+
+        # Note the median coverage level.
+
         median = max(
             min_coverage,
             describe_vector([k[1] for k in positional_coverage])['median'] * 0.5
         )
+
+        # Record and sort the positions with above-median coverage.
+
         sorted_positions = sorted(
             [k for k in positional_coverage if k[1] >= median]
         )
+
+        # Make an announcement.
+
         print(
             "Extracting well-covered region for(read-length = %g, min_coverage = %d, selected_coverage = %g) %s(node %d) " % (
                 float(read_length), min_coverage, median, in_path, node
             ),
             file=sys.stderr
         )
+
+        # If more than 50 positions have above-median coverage,
+
         if len(sorted_positions) > 50:
             #'''
             #end  = len(sorted_positions) // 2
@@ -526,54 +670,105 @@ def extract_and_collapse_well_covered_region(in_path, out_path, node, read_lengt
             #    end += 1
             #'''
 
+            # Make a note of the first and last of the sorted positions.
+
             start = sorted_positions[0][0] - 1
             end = sorted_positions[-1][0] - 1
             print("Selected [%d - %d]" % (start, end), file=sys.stderr)
             #print(sorted_positions)
 
+            # If the end and start are at least 50 apart,
+
             if end - start >= 50:
+
+                # Multiply the interval by 3 and record the result.
+
                 start = start*3
                 end = end*3
                 region_key = str(start) + "-" + str(end)
+
+                # Run extract_diagnostic_region on the new interval.
+
                 extracted = extract_diagnostic_region(
                     in_path, out_path, node, start, end, cov=min(
                         0.95, float(max(WINDOW, read_length))/(end-start)
                     )
                 )
+
+                # Run collapse_diagnostic_region on the result.
+
                 collapsed = collapse_diagnostic_region(
                     {region_key:extracted}, out_path, node, overlap=max(
                         50, float(read_length * 0.50)
                     ),
                     count=max(10, int(median * 0.005))
                 )
+
+                # If the result makes sense, return it.
+
                 if collapsed is not None:
                     if region_key in collapsed:
                         return list(collapsed.items())[0]
 
+    # Otherwise, return None.
+
     return None
 
-# run tropism prediction
+
+
+
+### run_tropism_prediction ###
+
+# Run tropism prediction. This function takes as its inputs
 
 def run_tropism_prediction(env_gene, out_path, node):
+
+    # Initialize the result dictionary.
+
     result = {}
+
+    # Note the location of the v3_model.
+
     v3_model = os.path.join(PATH_TO_THIS_FILE, "../data/V3.model")
 
+    # Construct the path to which to write the idepi.json.
+
     idepi_out = join(out_path, "idepi.json")
+
+    # Initialize the updated toggle.
+
     updated = False
 
+    # If the idepi.json already exists,
+
     if os.path.exists(idepi_out):
+
+        # Open it and load it to the result dictionary.
+
         with open(idepi_out, "r") as fhh:
             try:
                 result = json.load(fhh)
+
+            # If a ValueError occurs, ignore it.
+
             except ValueError as err:
                 pass
                 #print("Error reloading JSON info from %s" % diversity_out, file=sys.stderr)
                 #raise e
 
+
+    # If the result dictionary is empty,
+
     if len(result) == 0:
+
+        # Make an announcement and open a file at the output path.
+
         print("Running tropism predictions on %s(node %d)" % (env_gene, node), file=sys.stderr)
         with open(idepi_out, "w") as json_out:
             try:
+
+                # Use bpsh to call idepi on the input env_gene and the V3 model.
+
                 call_array = [
                     '/usr/bin/bpsh', str(node), '/opt/share/python3.3/idepi',
                     'predict', v3_model, env_gene
@@ -582,6 +777,10 @@ def run_tropism_prediction(env_gene, out_path, node):
                 subprocess.check_call(
                     call_array, stdout=json_out, stderr=subprocess.DEVNULL
                 )
+
+
+            # If an error occurs, say so and return None.
+
             except subprocess.CalledProcessError as err:
                 print(
                     'ERROR: Tropism predictions call failed', err,
@@ -589,14 +788,24 @@ def run_tropism_prediction(env_gene, out_path, node):
                 )
                 return None
 
+        # Open the newly created output file and load it to the result
+        # dictionary.
+
         with open(idepi_out, "r") as fhh:
             try:
                 result = json.load(fhh)
+
+            # If a ValueError occurs, ignore it.
+
             except ValueError as err:
                 pass
 
+    # If the result dictionary is not empty,
+
     if len(result):
         counts = {-1 : 0, 1 : 0}
+
+        # For each sequence,
 
         for seq in result['predictions']:
             counts[seq['value']] += float(seq['id'].split(':')[1])
@@ -606,27 +815,60 @@ def run_tropism_prediction(env_gene, out_path, node):
 
     return None
 
-# process an extracted diagnostic region
+
+
+### process_diagnostic_region ###
+
+# Run diversity estimates on an extracted diagnostic region. This function takes
+# as arguments a list of input files, a path to which to write an output file,
+# and a node to run on.
 
 def process_diagnostic_region(in_path_list, out_path, node):
+
+    # Initialize the result dictionary.
+
     result = {}
+
+    # Note the path to maketree.bf.
+
     local_file = os.path.join(PATH_TO_THIS_FILE, "../hyphy", "maketree.bf")
 
+    # Construct the path to which to write the output diversity.json file.
+
     diversity_out = join(out_path, "diversity.json")
+
+    # Initialize the updated toggle.
+
     updated = False
 
+    # If the output file already exists and diversity estimation is not forced,
+
     if os.path.exists(diversity_out) and not FORCE_DIVERSITY_ESTIMATION:
+
+        # Load the existing output file to the result dictionary.
+
         with open(diversity_out, "r") as fhh:
             try:
                 result = json.load(fhh)
+
+            # If a ValueError occurs, reset the result dictionary to blank.
+
             except ValueError as err:
                 #print("Error reloading JSON info from %s" % diversity_out, file=sys.stderr)
                 #raise e
                 result = {}
 
+    # For each input file,
+
     for region, in_path in in_path_list.items():
+
+        # If the region is already in the result dictionary, move on to the
+        # next one.
+
         if region in result:
             continue
+
+        # Make an announcement and use bpsh to run maketree.bf.
 
         print("Running diversity estimates on %s(node %d)" % (in_path, node), file=sys.stderr)
         try:
@@ -640,9 +882,16 @@ def process_diagnostic_region(in_path_list, out_path, node):
             )
             out, err = process.communicate(bytes(in_file, 'UTF-8'))
             try:
+
+                # Load the output file, add it to the result dictionary, and
+                # turn on the updated toggle.
+
                 out = json.loads(out.decode('UTF-8'))
                 result[region] = out
                 updated = True
+
+            # If a ValueError occurs, make an announcement but ignore it.
+
             except ValueError:
                 print(
                     'ERROR HyPhy call(local_file %s) %s/%s' % (
@@ -652,6 +901,9 @@ def process_diagnostic_region(in_path_list, out_path, node):
                 )
                 pass
 
+
+        # If an error occurs, say so and make a null return.
+
         except subprocess.CalledProcessError as err:
             print(
                 'ERROR: Diagnostic region analysis call failed', err,
@@ -659,12 +911,26 @@ def process_diagnostic_region(in_path_list, out_path, node):
             )
             return None, False
 
+    # Dump the results to the output file.
+
     with open(diversity_out, "w") as fhh:
         json.dump(result, fhh, sort_keys=True, indent=1)
 
+    # Return the results and the updated toggle.
+
     return diversity_out, updated
 
-## END TASK RUNNERS ##
+
+
+
+#--------------------------- End Task Runners ---------------------------------#
+
+
+
+
+### update_global_record ###
+
+# This function dumps all current information to the cache .json.
 
 def update_global_record(base_path, gene, analysis_record):
     global THREADING_LOCK
