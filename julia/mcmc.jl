@@ -906,6 +906,8 @@ end
 
 # Parse arguments.
 
+args = ARGS
+
 s = ArgParseSettings()
 s.description = "call variants using a multinomial model sampled by MCMC"
 
