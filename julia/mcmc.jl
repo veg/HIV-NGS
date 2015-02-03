@@ -428,7 +428,10 @@ function mcmc(
     # Normalize the conditionals and weights by site.
 
     normalized_by_site = ones((1, npoints)) * conditionals
-    normalized_weights = conditionals * ((1 ./ normalized_by_site) .* eye(nsites))
+    
+    print(type(normalized_by_site))
+    
+    normalized_weights = conditionals * ((1 / normalized_by_site) .* eye(nsites))
     
     # Sum the weights by site and normalize.
     
