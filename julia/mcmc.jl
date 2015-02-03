@@ -900,80 +900,80 @@ end
 #                                   main                                       #
 #------------------------------------------------------------------------------#
 
-# Define the main function.
+## Define the main function.
 
-function main(args)
+#function main(args)
 
-    # Parse arguments.
+# Parse arguments.
 
-    s = ArgParseSettings()
-    s.description = "call variants using a multinomial model sampled by MCMC"
+s = ArgParseSettings()
+s.description = "call variants using a multinomial model sampled by MCMC"
 
-    @add_arg_table s begin
-        "--grid-density", "-g"
-            arg_type = Int64
-            default = 10
-        "--chain-length", "-c"
-            arg_type = Int64
-            default = 2_000_000
-        "--burnin-fraction", "-b"
-            arg_type = Float64
-            default = 0.5
-        "--target-rate", "-t"
-            arg_type = Float64
-            default = 0.01
-        "--posterior-threshold", "-p"
-            arg_type = Float64
-            default = 0.95
-        "--filter", "-f"
-            arg_type = String
-        "--json-report", "-j"
-            arg_type = String
-        "msa"
-            required = true
-    end
-
-    parsed_args = parse_args(args, s)
-    
-    # Construct the rate grid.
-    
-    rates = rategrid(parsed_args["grid-density"], parsed_args["target-rate"])
-    
-    # Construct the alphabet.
-
-    const alphabet = "ACGT"
-    
-    # Execute countmsa() on the input .msa file and the alphabet.
-        
-    counts = countmsa(parsed_args["msa"], alphabet)
-    
-    # Construct conditionals and scalers using gridscores().
-
-    conditionals, scalers = gridscores(counts, rates, alphabet)
-    
-    # Obtain lls and ws via MCMC simulation.
-
-    lls, ws = mcmc(
-        conditionals, scalers,
-        chain_length=parsed_args["chain-length"], burnin_fraction=parsed_args["burnin-fraction"])
-        
-    # Extract priors and posteriors from conditionals and ws using postproc.
-
-    priors, posteriors = postproc(conditionals', ws)
-    
-    # Call variants.
-
-    variants = callvariants(
-        counts, rates, priors, posteriors, alphabet,
-        target_rate=parsed_args["target-rate"], posterior_threshold=parsed_args["posterior-threshold"], json_file = parsed_args["json-report"])
-    
-    # If instructed to, filter the sequences.
-    
-    if "filter" in keys(parsed_args)
-        filterseqs(parsed_args["msa"], variants, parsed_args["filter"], alphabet)
-    end
+@add_arg_table s begin
+	"--grid-density", "-g"
+		arg_type = Int64
+		default = 10
+	"--chain-length", "-c"
+		arg_type = Int64
+		default = 2_000_000
+	"--burnin-fraction", "-b"
+		arg_type = Float64
+		default = 0.5
+	"--target-rate", "-t"
+		arg_type = Float64
+		default = 0.01
+	"--posterior-threshold", "-p"
+		arg_type = Float64
+		default = 0.95
+	"--filter", "-f"
+		arg_type = String
+	"--json-report", "-j"
+		arg_type = String
+	"msa"
+		required = true
 end
 
-# Execute.
+parsed_args = parse_args(args, s)
 
-main(ARGS)
+# Construct the rate grid.
+
+rates = rategrid(parsed_args["grid-density"], parsed_args["target-rate"])
+
+# Construct the alphabet.
+
+const alphabet = "ACGT"
+
+# Execute countmsa() on the input .msa file and the alphabet.
+	
+counts = countmsa(parsed_args["msa"], alphabet)
+
+# Construct conditionals and scalers using gridscores().
+
+conditionals, scalers = gridscores(counts, rates, alphabet)
+
+# Obtain lls and ws via MCMC simulation.
+
+lls, ws = mcmc(
+	conditionals, scalers,
+	chain_length=parsed_args["chain-length"], burnin_fraction=parsed_args["burnin-fraction"])
+	
+# Extract priors and posteriors from conditionals and ws using postproc.
+
+priors, posteriors = postproc(conditionals', ws)
+
+# Call variants.
+
+variants = callvariants(
+	counts, rates, priors, posteriors, alphabet,
+	target_rate=parsed_args["target-rate"], posterior_threshold=parsed_args["posterior-threshold"], json_file = parsed_args["json-report"])
+
+# If instructed to, filter the sequences.
+
+if "filter" in keys(parsed_args)
+	filterseqs(parsed_args["msa"], variants, parsed_args["filter"], alphabet)
+end
+#end
+
+## Execute.
+
+#main(ARGS)
