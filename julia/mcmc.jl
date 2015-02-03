@@ -137,7 +137,7 @@ function rategrid(n::Integer, error_threshold::Float64)
     # Initialize uniques, an empty two-dimensional array. Uniques is initialized
     # as a set to avoid duplicate rows.
     
-    #uniques = Set{Array{Float64, 2}}()
+    uniques = Set{Array{Float64, 2}}()
     
     # Build uniques using the error threshold.
     
