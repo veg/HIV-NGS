@@ -368,7 +368,7 @@ function ldensity(weights::Array{Float64,2}, alpha::Float64)
     # Set bounds on the weights array and on alpha to protect against extreme
     # cases.
 
-    if min(weights) <= 1e-10
+    if minimum(weights) <= 1e-10
         return 1e-10
     end
     if alpha == 1
