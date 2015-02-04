@@ -1,4 +1,4 @@
-#!/usr/bin/env julia
+#!/usr/bin/env /opt/julia-0.2.0-rc1/bin/julia
 
 #------------------------------------------------------------------------------#
 #                                 mcmc.jl                                      #
@@ -137,15 +137,15 @@ function rategrid(n::Integer, error_threshold::Float64)
     # Initialize uniques, an empty two-dimensional array. Uniques is initialized
     # as a set to avoid duplicate rows.
     
-    uniques = Set()
+    uniques = Set{Array{Float64, 2}}()
     
     # Build uniques using the error threshold.
     
     M = 1. - 3. * error_threshold
-	union! (uniques, [M error_threshold error_threshold error_threshold])
-	union! (uniques, [error_threshold M error_threshold error_threshold])
-	union! (uniques, [error_threshold error_threshold M error_threshold])
-	union! (uniques, [error_threshold error_threshold error_threshold M])
+	add! (uniques, [M error_threshold error_threshold error_threshold])
+	add! (uniques, [error_threshold M error_threshold error_threshold])
+	add! (uniques, [error_threshold error_threshold M error_threshold])
+	add! (uniques, [error_threshold error_threshold error_threshold M])
         
     # For each value in the rates vector,
         
@@ -161,7 +161,7 @@ function rategrid(n::Integer, error_threshold::Float64)
                     rate_vec = fill (error_threshold, (1,4))
 	                rate_vec[i1] = M
 	                rate_vec[i2] = a
-	                union! (uniques, rate_vec)
+	                add! (uniques, rate_vec)
 	            end
 	        end
 	    end
@@ -171,10 +171,10 @@ function rategrid(n::Integer, error_threshold::Float64)
         for b in rates
             for c in rates
                 M = 1. - (a + b + c)
-		        union! (uniques, [M a b c])
-		        union! (uniques, [a M b c])
-                union! (uniques, [a b M c])
-                union! (uniques, [a b c M])
+		        add! (uniques, [M a b c])
+		        add! (uniques, [a M b c])
+                add! (uniques, [a b M c])
+                add! (uniques, [a b c M])
             	
             end
         end
@@ -428,9 +428,6 @@ function mcmc(
     # Normalize the conditionals and weights by site.
 
     normalized_by_site = ones((1, npoints)) * conditionals
-    
-    print(type(normalized_by_site))
-    
     normalized_weights = conditionals * ((1 / normalized_by_site) .* eye(nsites))
     
     # Sum the weights by site and normalize.
