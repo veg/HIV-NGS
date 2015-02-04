@@ -621,7 +621,7 @@ function postproc(conditionals::Array{Float64,2}, ws::Array{Float64,2})
     
     # Compute the posteriors.
     
-    posteriors = ((1 / normalization) .* eye(nsites)) * (conditionals * (priors .* eye(npoints)))
+    posteriors = ((1 ./ normalization) .* eye(nsites)) * (conditionals * (priors .* eye(npoints)))
     done()
     
     # Return the priors and posteriors.
