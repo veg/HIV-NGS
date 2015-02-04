@@ -23,10 +23,10 @@ from itertools import product, combinations
 
 # Declare global variables
 
-global PREVIOUS_RUN_CACHE
-global THREADING_LOCK
-global TASK_QUEUE
-global FORCE_DIVERSITY_ESTIMATION
+global previous_run_cache
+global threading_lock
+global task_queue
+global force_diversity_estimation
 
 
 
@@ -34,64 +34,64 @@ global FORCE_DIVERSITY_ESTIMATION
 #                          Initialize some variables                           #
 #------------------------------------------------------------------------------#
 
-# CHECK_FILE_PATHS appears later in the multinomial_filter function.
-# CHECK_FILE_PATHS_DIVERSITY appears later in the functions
+# check_file_paths appears later in the multinomial_filter function.
+# check_file_paths_diversity appears later in the functions
 # collapse_translate_reads, count_collapsed_reads, extract_diagnostic_region,
 # and collapse_diagnostic_region. PATH_TO_THIS_FILE is the path to the
 # directory containing directoryscanner.py.
 
-CHECK_FILE_PATHS = True
-CHECK_FILE_PATHS_DIVERSITY = True
+check_file_paths = True
+check_file_paths_diversity = True
 PATH_TO_THIS_FILE = os.path.dirname(os.path.realpath(__file__))
 
-# applying ngs_task_runners.set_cache_flags sets CHECK_FILE_PATHS and
-# CHECK_FILE_PATHS_DIVERSITY as global variables.
+# applying ngs_task_runners.set_cache_flags sets check_file_paths and
+# check_file_paths_diversity as global variables.
 
-ntr.set_cache_flags(CHECK_FILE_PATHS, CHECK_FILE_PATHS_DIVERSITY)
+ntr.set_cache_flags(check_file_paths, check_file_paths_diversity)
 
-# KNOWN_REFS is a list of paths to reference files for the genes indicated in
-# the KNOWN_GENES list, below. These references will be used for aligning
+# known_refs is a list of paths to reference files for the genes indicated in
+# the known_genes list, below. These references will be used for aligning
 # codons later. Reference sequences are accessed during handle_a_gene, for
-# alignment and for updating the analysis cache. KNOWN_REFS and KNOWN_GENES are
+# alignment and for updating the analysis cache. known_refs and known_genes are
 # used early in the main script to check that all of the input genes are
-# included in KNOWN_GENES. genes is an empty list to be filled by the argument
+# included in known_genes. genes is an empty list to be filled by the argument
 # parser.
 
-KNOWN_REFS = [
+known_refs = [
     os.path.normpath(os.path.join(PATH_TO_THIS_FILE, k)) for k in [
         '../data/rt.fas', '../data/gag_p24.fas', '../data/env_C2V5.fas',
         '../data/pr.fas', '../data/hcv1bcore.fas'
     ]
 ]
-KNOWN_GENES = ['rt', 'gag', 'env', 'pr', 'hcv1bcore']
-GENES = []
+known_genes = ['rt', 'gag', 'env', 'pr', 'hcv1bcore']
+genes = []
 
-# CACHE_FILE is a file storing cached information from update_global_record,
+# cache_file is a file storing cached information from update_global_record,
 # compartmentalization_handler, and the main script. It is initialized here as
-# an empty string to be filled by the argument parser. DTHANDLER is used during
-# json dumps to the cache file. NODES_TO_RUN_ON is a list of nodes to run on,
+# an empty string to be filled by the argument parser. dthandler is used during
+# json dumps to the cache file. nodes_to_run_on is a list of nodes to run on,
 # initialized here as an empty list to be filled by the argument parser.
 
-CACHE_FILE = ""
-DTHANDLER = lambda obj: obj.isoformat() if isinstance(obj, datetime.datetime) else None
-NODES_TO_RUN_ON = []
+cache_file = ""
+dthandler = lambda obj: obj.isoformat() if isinstance(obj, datetime.datetime) else None
+nodes_to_run_on = []
 
-# SPANS is initialized here as an empty list to be filled by the argument
-# parser. handle_a_gene iterates on SPANS when calling
-# extract_diagnostic_region. WINDOW is used as a constant by
+# spans is initialized here as an empty list to be filled by the argument
+# parser. handle_a_gene iterates on spans when calling
+# extract_diagnostic_region. window is used as a constant by
 # extract_and_collapse_well_covered_region as an argument to
-# extract_diagnostic_region. STRIDE is used as a constant when updating SPANS.
+# extract_diagnostic_region. stride is used as a constant when updating spans.
 
-SPANS = []
-WINDOW = 210
-STRIDE = 30
+spans = []
+window = 210
+stride = 30
 
-# FORCE_DIVERSITY_ESTIMATION is a toggle for various steps in handling the
-# results list. FORCE_QFULT_RERUN causes qfilt to be run automatically,
-# regardless of whether filtered_fastq is in NGS_RUN_CACHE.
+# force_diversity_estimation is a toggle for various steps in handling the
+# results list. force_qfilt_rerun causes qfilt to be run automatically,
+# regardless of whether filtered_fastq is in NGS_run_cache.
 
-FORCE_DIVERSITY_ESTIMATION = False
-FORCE_QFULT_RERUN = False
+force_diversity_estimation = False
+force_qfilt_rerun = False
 
 
 
@@ -215,7 +215,7 @@ def collapse_translate_reads(in_path, out_path):
 
     # If these files already exist, return.
 
-    if CHECK_FILE_PATHS_DIVERSITY and os.path.exists(merged_out) and os.path.exists(merged_out_prot):
+    if check_file_paths_diversity and os.path.exists(merged_out) and os.path.exists(merged_out_prot):
         return(merged_out, merged_out_prot)
 
     print("Collapsing and translating reads %s " % in_path, file=sys.stderr)
@@ -266,7 +266,7 @@ def count_collapsed_reads(in_path, out_path, node):
 
     # If the .json cache file already exists, load it.
 
-    if CHECK_FILE_PATHS_DIVERSITY and os.path.exists(merged_json):
+    if check_file_paths_diversity and os.path.exists(merged_json):
         with open(merged_json) as fhh:
             if len(json.load(fhh)) > 0:
                 print("[CACHED]")
@@ -320,7 +320,7 @@ def multinomial_filter(in_path, out_path, node):
 
     # If these files already exist, return.
 
-    if CHECK_FILE_PATHS and os.path.exists(filtered_out) and os.path.exists(json_out):
+    if check_file_paths and os.path.exists(filtered_out) and os.path.exists(json_out):
         return filtered_out, json_out
 
     # Use bpsh to apply the Julia script mcmc.jl to the input
@@ -484,7 +484,7 @@ def extract_diagnostic_region(in_path, out_path, node, start=0, end=1000000, cov
 
     # If the path already exists, return.
 
-    if CHECK_FILE_PATHS_DIVERSITY and os.path.exists(merged_out) and not FORCE_DIVERSITY_ESTIMATION:
+    if check_file_paths_diversity and os.path.exists(merged_out) and not force_diversity_estimation:
         return merged_out
 
     try:
@@ -533,7 +533,7 @@ def collapse_diagnostic_region(in_path_list, out_path, node, overlap=100, count=
 
         # If the input file exists,
 
-        if in_path is not None and os.path.exists(in_path) or FORCE_DIVERSITY_ESTIMATION:
+        if in_path is not None and os.path.exists(in_path) or force_diversity_estimation:
 
             # Construct the path to which the output file will be written.
 
@@ -543,7 +543,7 @@ def collapse_diagnostic_region(in_path_list, out_path, node, overlap=100, count=
 
                 # If the output file already exists,
 
-                if CHECK_FILE_PATHS_DIVERSITY and os.path.exists(merged_out) and not FORCE_DIVERSITY_ESTIMATION:
+                if check_file_paths_diversity and os.path.exists(merged_out) and not force_diversity_estimation:
 
                     # Add it to the result dictionary and continue to the next 
                     # input file.
@@ -691,7 +691,7 @@ def extract_and_collapse_well_covered_region(in_path, out_path, node, read_lengt
 
                 extracted = extract_diagnostic_region(
                     in_path, out_path, node, start, end, cov=min(
-                        0.95, float(max(WINDOW, read_length))/(end-start)
+                        0.95, float(max(window, read_length))/(end-start)
                     )
                 )
 
@@ -843,7 +843,7 @@ def process_diagnostic_region(in_path_list, out_path, node):
 
     # If the output file already exists and diversity estimation is not forced,
 
-    if os.path.exists(diversity_out) and not FORCE_DIVERSITY_ESTIMATION:
+    if os.path.exists(diversity_out) and not force_diversity_estimation:
 
         # Load the existing output file to the result dictionary.
 
@@ -933,46 +933,46 @@ def process_diagnostic_region(in_path_list, out_path, node):
 # This function dumps all current information to the cache .json.
 
 def update_global_record(base_path, gene, analysis_record):
-    global THREADING_LOCK
-    global NGS_RUN_CACHE
+    global threading_lock
+    global NGS_run_cache
 
-    THREADING_LOCK.acquire()
-    NGS_RUN_CACHE[base_path][gene] = analysis_record
-    print("DUMPING JSON WITH %d RECORDS" % len(NGS_RUN_CACHE))
-    with open(CACHE_FILE, "w") as fhh:
+    threading_lock.acquire()
+    NGS_run_cache[base_path][gene] = analysis_record
+    print("DUMPING JSON WITH %d RECORDS" % len(NGS_run_cache))
+    with open(cache_file, "w") as fhh:
         json.dump(
-            NGS_RUN_CACHE, fhh, default=DTHANDLER, sort_keys=True, indent=1
+            NGS_run_cache, fhh, default=dthandler, sort_keys=True, indent=1
         )
     update_json = False
 
-    THREADING_LOCK.release()
+    threading_lock.release()
 
 def analysis_handler(node_to_run_on):
     while True:
         (
             base_path, file_results_dir_overall, j, gene, analysis_cache,
             median_read_length
-        ) = TASK_QUEUE.get()
+        ) = task_queue.get()
         handle_a_gene(
             base_path, file_results_dir_overall, j, gene, analysis_cache,
             node_to_run_on, median_read_length
         )
-        TASK_QUEUE.task_done()
+        task_queue.task_done()
 
 def compartmentalization_handler(node_to_run_on):
     while True:
-        in_paths, tag, analysis_record = TASK_QUEUE.get()
+        in_paths, tag, analysis_record = task_queue.get()
         cmp = check_compartmenalization(in_paths, node_to_run_on, subset=0.33)
-        THREADING_LOCK.acquire()
+        threading_lock.acquire()
         analysis_record[tag] = cmp
 
-        with open(CACHE_FILE, "w") as fhh:
+        with open(cache_file, "w") as fhh:
             json.dump(
-                NGS_RUN_CACHE, fhh, default=DTHANDLER, sort_keys=True, indent=1
+                NGS_run_cache, fhh, default=dthandler, sort_keys=True, indent=1
             )
 
-        THREADING_LOCK.release()
-        TASK_QUEUE.task_done()
+        threading_lock.release()
+        task_queue.task_done()
 
 
 def set_update_json(path, text):
@@ -981,8 +981,8 @@ def set_update_json(path, text):
 
 def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cache, node, median_read_length):
 
-    global THREADING_LOCK
-    global NGS_RUN_CACHE
+    global threading_lock
+    global NGS_run_cache
 
     update_json = False
     file_results_dir = os.path.join(file_results_dir_overall, gene)
@@ -991,34 +991,34 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
         os.makedirs(file_results_dir)
 
     if index == 0:
-        if 'filtered_fastq' in NGS_RUN_CACHE[base_path] and NGS_RUN_CACHE[base_path]['filtered_fastq'] is not None:
+        if 'filtered_fastq' in NGS_run_cache[base_path] and NGS_run_cache[base_path]['filtered_fastq'] is not None:
             if 'aligned_bam' not in analysis_cache or analysis_cache['aligned_bam'] is None:
                 (
                     analysis_cache['aligned_bam'], analysis_cache['discards']
                 ) = ntr.codon_aligner(
-                    NGS_RUN_CACHE[base_path]['filtered_fastq'],
-                    file_results_dir, node, REFS[index]
+                    NGS_run_cache[base_path]['filtered_fastq'],
+                    file_results_dir, node, refs[index]
                 )
                 update_json = True
             if 'reference_sequence' not in analysis_cache:
-                analysis_cache['reference_sequence'] = REFS[index]
+                analysis_cache['reference_sequence'] = refs[index]
                 update_json = set_update_json(
                     file_results_dir,
                     "if 'reference_sequence' not in analysis_cache"
                 )
     else:
-        prev_gene = GENES[index-1]
-        if 'discards' in NGS_RUN_CACHE[base_path][prev_gene] and NGS_RUN_CACHE[base_path][prev_gene]['discards'] is not None:
+        prev_gene = genes[index-1]
+        if 'discards' in NGS_run_cache[base_path][prev_gene] and NGS_run_cache[base_path][prev_gene]['discards'] is not None:
             if 'aligned_bam' not in analysis_cache or analysis_cache['aligned_bam'] is None:
                 (
                     analysis_cache['aligned_bam'], analysis_cache['discards']
                 ) = ntr.codon_aligner(
-                    NGS_RUN_CACHE[base_path][prev_gene]['discards'],
-                    file_results_dir, node, REFS[index]
+                    NGS_run_cache[base_path][prev_gene]['discards'],
+                    file_results_dir, node, refs[index]
                 )
                 update_json = True
             if 'reference_sequence' not in analysis_cache:
-                analysis_cache['reference_sequence'] = REFS[index]
+                analysis_cache['reference_sequence'] = refs[index]
                 update_json = set_update_json(
                     file_results_dir,
                     "if 'reference_sequence' not in analysis_cache"
@@ -1067,9 +1067,9 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
             ) = collapse_translate_reads(
                 analysis_cache['filtered_msa'], file_results_dir
             )
-        if FORCE_DIVERSITY_ESTIMATION or 'region_msa' not in analysis_cache:
+        if force_diversity_estimation or 'region_msa' not in analysis_cache:
             result = {}
-            for span in SPANS[index]:
+            for span in spans[index]:
                 result[
                     "-".join([str(k) for k in span])
                 ] = extract_diagnostic_region(
@@ -1103,7 +1103,7 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
                     )
 
 
-        if FORCE_DIVERSITY_ESTIMATION or 'overall_region' not in analysis_cache or analysis_cache['overall_region'] is None:
+        if force_diversity_estimation or 'overall_region' not in analysis_cache or analysis_cache['overall_region'] is None:
             (
                 analysis_cache['overall_region']
             ) = extract_and_collapse_well_covered_region(
@@ -1121,14 +1121,14 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
         update_json = False
 
     if 'region_msa' in analysis_cache and analysis_cache['region_msa']  is not None:
-        if FORCE_DIVERSITY_ESTIMATION or 'region_merged_msa' not in NGS_RUN_CACHE[base_path][gene] or NGS_RUN_CACHE[base_path][gene]['region_merged_msa'] is None:
+        if force_diversity_estimation or 'region_merged_msa' not in NGS_run_cache[base_path][gene] or NGS_run_cache[base_path][gene]['region_merged_msa'] is None:
             analysis_cache['region_merged_msa'] = collapse_diagnostic_region(
                 analysis_cache['region_msa'], file_results_dir, node,
-                WINDOW - 10
+                window - 10
             )
             update_json = set_update_json(
                 file_results_dir,
-                "'region_merged_msa' not in NGS_RUN_CACHE[base_path][gene] or NGS_RUN_CACHE[base_path][gene]['region_merged_msa'] is None"
+                "'region_merged_msa' not in NGS_run_cache[base_path][gene] or NGS_run_cache[base_path][gene]['region_merged_msa'] is None"
             )
 
     if update_json:
@@ -1137,7 +1137,7 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
 
     if 'region_merged_msa' in analysis_cache and analysis_cache['region_merged_msa'] is not None:
         if 'overall_region' in analysis_cache and analysis_cache['overall_region'] is not None:
-            if FORCE_DIVERSITY_ESTIMATION or analysis_cache['overall_region'][0] not in analysis_cache['region_merged_msa']:
+            if force_diversity_estimation or analysis_cache['overall_region'][0] not in analysis_cache['region_merged_msa']:
                 (
                     analysis_cache['region_merged_msa'][analysis_cache['overall_region'][0]]
                 ) = analysis_cache['overall_region'][1]
@@ -1176,10 +1176,10 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
         #if has_compartment_data:
         #    tag =(patient_id, sample_date)
         #    if tag not in check_for_compartmentalization:
-        #        check_for_compartmentalization[tag] = {'GENES' : [], 'paths' : {}}
+        #        check_for_compartmentalization[tag] = {'genes' : [], 'paths' : {}}
 
-        #    if gene not in check_for_compartmentalization[tag]['GENES']:
-        #        check_for_compartmentalization[tag]['GENES'].append(gene)
+        #    if gene not in check_for_compartmentalization[tag]['genes']:
+        #        check_for_compartmentalization[tag]['genes'].append(gene)
         #        check_for_compartmentalization[tag]['paths'][gene] = []
 
         #    check_for_compartmentalization[tag]['paths'][gene].append([file_results_dir,analysis_cache['merged_msa'],compartment,base_path])
@@ -1219,8 +1219,8 @@ def hash_file(filepath):
 
 def main(directory, results_dir, has_compartment_data, has_replicate_counts, scan_q_filt):
 
-    global NGS_RUN_CACHE
-    global TASK_QUEUE
+    global NGS_run_cache
+    global task_queue
 
     non_gene_keys = set(
         (
@@ -1229,18 +1229,18 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
         )
     )
 
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r") as fhh:
-            NGS_RUN_CACHE = json.load(fhh)
+    if os.path.exists(cache_file):
+        with open(cache_file, "r") as fhh:
+            NGS_run_cache = json.load(fhh)
     else:
-        NGS_RUN_CACHE = {}
+        NGS_run_cache = {}
 
 
 
-    #REFS = ['data/pr.fas', 'data/rt.fas','data/gag_p24.fas','data/env_C2V5.fas']
-    #GENES = ['pr','rt','gag', 'env']
+    #refs = ['data/pr.fas', 'data/rt.fas','data/gag_p24.fas','data/env_C2V5.fas']
+    #genes = ['pr','rt','gag', 'env']
 
-    #for k in SPANS:
+    #for k in spans:
     #    print(k)
 
 
@@ -1274,9 +1274,9 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                     continue
                 base_file = join(root, name + ext)
 
-                #THREADING_LOCK.acquire()
-                if base_path not in NGS_RUN_CACHE:
-                    NGS_RUN_CACHE[base_path] = {'id' : len(NGS_RUN_CACHE) + 1}
+                #threading_lock.acquire()
+                if base_path not in NGS_run_cache:
+                    NGS_run_cache[base_path] = {'id' : len(NGS_run_cache) + 1}
 
                 print('Working on %s...' % base_file, file=sys.stderr)
 
@@ -1291,10 +1291,10 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                             results_dir, patient_id, sample_date, compartment,
                             replicate
                         )
-                        NGS_RUN_CACHE[base_path]['patient_id'] = patient_id
-                        NGS_RUN_CACHE[base_path]['sample_date'] = sample_date
-                        NGS_RUN_CACHE[base_path]['compartment'] = compartment
-                        NGS_RUN_CACHE[base_path]['replicate'] = replicate
+                        NGS_run_cache[base_path]['patient_id'] = patient_id
+                        NGS_run_cache[base_path]['sample_date'] = sample_date
+                        NGS_run_cache[base_path]['compartment'] = compartment
+                        NGS_run_cache[base_path]['replicate'] = replicate
                     else:
                         dirn, replicate = os.path.split(root)
                         dirn, sample_date = os.path.split(dirn)
@@ -1302,9 +1302,9 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                         file_results_dir_overall = os.path.join(
                             results_dir, patient_id, sample_date, replicate
                         )
-                        NGS_RUN_CACHE[base_path]['patient_id'] = patient_id
-                        NGS_RUN_CACHE[base_path]['sample_date'] = sample_date
-                        NGS_RUN_CACHE[base_path]['replicate'] = replicate
+                        NGS_run_cache[base_path]['patient_id'] = patient_id
+                        NGS_run_cache[base_path]['sample_date'] = sample_date
+                        NGS_run_cache[base_path]['replicate'] = replicate
                 else:
                     if has_compartment_data:
                         dirn, compartment = os.path.split(root)
@@ -1313,43 +1313,43 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                         file_results_dir_overall = os.path.join(
                             results_dir, patient_id, sample_date, compartment
                         )
-                        NGS_RUN_CACHE[base_path]['patient_id'] = patient_id
-                        NGS_RUN_CACHE[base_path]['sample_date'] = sample_date
-                        NGS_RUN_CACHE[base_path]['compartment'] = compartment
+                        NGS_run_cache[base_path]['patient_id'] = patient_id
+                        NGS_run_cache[base_path]['sample_date'] = sample_date
+                        NGS_run_cache[base_path]['compartment'] = compartment
                     else:
                         dirn, sample_date = os.path.split(root)
                         dirn, patient_id = os.path.split(dirn)
                         file_results_dir_overall = os.path.join(
                             results_dir, patient_id, sample_date
                         )
-                        NGS_RUN_CACHE[base_path]['patient_id'] = patient_id
-                        NGS_RUN_CACHE[base_path]['sample_date'] = sample_date
+                        NGS_run_cache[base_path]['patient_id'] = patient_id
+                        NGS_run_cache[base_path]['sample_date'] = sample_date
 
 
                 if not os.path.exists(file_results_dir_overall):
                     os.makedirs(file_results_dir)
 
-                if 'in_fasta' not in NGS_RUN_CACHE[base_path] and 'in_fastq' not in NGS_RUN_CACHE[base_path]:
-                    NGS_RUN_CACHE[base_path]['md5'] = hash_file(base_file)
+                if 'in_fasta' not in NGS_run_cache[base_path] and 'in_fastq' not in NGS_run_cache[base_path]:
+                    NGS_run_cache[base_path]['md5'] = hash_file(base_file)
                     if ext == '.fastq':
-                        NGS_RUN_CACHE[base_path]['in_fastq'] = base_file
+                        NGS_run_cache[base_path]['in_fastq'] = base_file
                     else:
-                        NGS_RUN_CACHE[base_path]['in_fasta'] = base_file
-                        NGS_RUN_CACHE[base_path]['in_qual'] = join(
+                        NGS_run_cache[base_path]['in_fasta'] = base_file
+                        NGS_run_cache[base_path]['in_qual'] = join(
                             root, name + ".qual"
                         )
                 else:
                     do_skip = False
                     same_hash = False
 
-                    key_pair = ('in_fastq', '.fna') if 'in_fastq' in NGS_RUN_CACHE[base_path] else('in_fasta', '.fastq')
+                    key_pair = ('in_fastq', '.fna') if 'in_fastq' in NGS_run_cache[base_path] else('in_fasta', '.fastq')
 
                     if ext == key_pair[1]:
                         do_skip = True
                     else:
-                        if NGS_RUN_CACHE[base_path][key_pair[0]] != base_file:
+                        if NGS_run_cache[base_path][key_pair[0]] != base_file:
                             do_skip = True
-                            same_hash = NGS_RUN_CACHE[base_path]['md5'] == hash_file(base_file)
+                            same_hash = NGS_run_cache[base_path]['md5'] == hash_file(base_file)
 
                     if do_skip:
                         print(
@@ -1365,24 +1365,24 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
 
                 median_read_length = 200
 
-                if 'in_fasta' in NGS_RUN_CACHE[base_path] and  NGS_RUN_CACHE[base_path]['in_fasta'] is not None:
-                    if 'filtered_fastq' not in NGS_RUN_CACHE[base_path] or FORCE_QFULT_RERUN:
-                        NGS_RUN_CACHE[base_path]['filtered_fastq'] = run_qfilt(
-                            NGS_RUN_CACHE[base_path]['in_fasta'],
-                            NGS_RUN_CACHE[base_path]['in_qual'],
+                if 'in_fasta' in NGS_run_cache[base_path] and  NGS_run_cache[base_path]['in_fasta'] is not None:
+                    if 'filtered_fastq' not in NGS_run_cache[base_path] or force_qfilt_rerun:
+                        NGS_run_cache[base_path]['filtered_fastq'] = run_qfilt(
+                            NGS_run_cache[base_path]['in_fasta'],
+                            NGS_run_cache[base_path]['in_qual'],
                             join(file_results_dir_overall, 'qfilt.fna'),
                             join(file_results_dir_overall, 'qfilt.json')
                         )
 
-                if 'in_fastq' in NGS_RUN_CACHE[base_path] and  NGS_RUN_CACHE[base_path]['in_fastq'] is not None:
-                    if 'filtered_fastq' not in NGS_RUN_CACHE[base_path] or FORCE_QFULT_RERUN:
-                        NGS_RUN_CACHE[base_path]['filtered_fastq'] = run_qfilt(
-                            NGS_RUN_CACHE[base_path]['in_fastq'], None,
+                if 'in_fastq' in NGS_run_cache[base_path] and  NGS_run_cache[base_path]['in_fastq'] is not None:
+                    if 'filtered_fastq' not in NGS_run_cache[base_path] or force_qfilt_rerun:
+                        NGS_run_cache[base_path]['filtered_fastq'] = run_qfilt(
+                            NGS_run_cache[base_path]['in_fastq'], None,
                             join(file_results_dir_overall, 'qfilt.fna'),
                             join(file_results_dir_overall, 'qfilt.json')
                         )
 
-                if 'filtered_fastq' in NGS_RUN_CACHE[base_path] and NGS_RUN_CACHE[base_path]['filtered_fastq'] is not None:
+                if 'filtered_fastq' in NGS_run_cache[base_path] and NGS_run_cache[base_path]['filtered_fastq'] is not None:
                     try:
                         with open(join(file_results_dir_overall, 'qfilt.json')) as fhh:
                             jsn = json.load(fhh)['run summary'][
@@ -1394,47 +1394,47 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                     except:
                         pass
 
-                #THREADING_LOCK.release()
+                #threading_lock.release()
 
-                for index, gene in enumerate(GENES):
-                    if gene not in NGS_RUN_CACHE[base_path]:
-                        NGS_RUN_CACHE[base_path][gene] = {}
+                for index, gene in enumerate(genes):
+                    if gene not in NGS_run_cache[base_path]:
+                        NGS_run_cache[base_path][gene] = {}
                     if gene not in tasks_by_gene:
                         tasks_by_gene[gene] = []
                     tasks_by_gene[gene].append(
                         [
                             base_path, file_results_dir_overall, index, gene,
-                            NGS_RUN_CACHE[base_path][gene],
+                            NGS_run_cache[base_path][gene],
                             median_read_length
                         ]
                     )
 
 
 
-    with open(CACHE_FILE, "w") as fhh:
-        json.dump(NGS_RUN_CACHE, fhh, default=DTHANDLER, sort_keys=True, indent=1)
+    with open(cache_file, "w") as fhh:
+        json.dump(NGS_run_cache, fhh, default=dthandler, sort_keys=True, indent=1)
 
     for gene, task_list in tasks_by_gene.items():
-        TASK_QUEUE = queue.Queue()
+        task_queue = queue.Queue()
 
-        for node in NODES_TO_RUN_ON:
+        for node in nodes_to_run_on:
             thrd = threading.Thread(target=analysis_handler, args=(node,))
             thrd.daemon = True
             thrd.start()
 
         for task in task_list:
-            TASK_QUEUE.put(task, block=False)
+            task_queue.put(task, block=False)
 
-        TASK_QUEUE.join()
-    #TASK_QUEUE.join()
+        task_queue.join()
+    #task_queue.join()
 
-    TASK_QUEUE = queue.Queue()
-    if 'F_ST' not in NGS_RUN_CACHE:
-        NGS_RUN_CACHE['F_ST'] = {}
+    task_queue = queue.Queue()
+    if 'F_ST' not in NGS_run_cache:
+        NGS_run_cache['F_ST'] = {}
 
     compartmentalization_sets = {}
 
-    for key, value in NGS_RUN_CACHE.items():
+    for key, value in NGS_run_cache.items():
         if type(value) == dict:
             if 'patient_id' in value and 'sample_date' in value and 'compartment' in value:
                 tag = (value['patient_id'], value['sample_date'])
@@ -1454,7 +1454,7 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                                 value['compartment']
                             ].append(value2['merged_msa'])
 
-    for node in NODES_TO_RUN_ON:
+    for node in nodes_to_run_on:
         thrd = threading.Thread(target=compartmentalization_handler, args=(node,))
         thrd.daemon = True
         thrd.start()
@@ -1465,7 +1465,7 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                 compartments = list(data.keys())
 
                 subject_cache = check_keys_in_dict(
-                    NGS_RUN_CACHE['F_ST'], [sample[0], sample[1], gene]
+                    NGS_run_cache['F_ST'], [sample[0], sample[1], gene]
                 )
 
 
@@ -1473,7 +1473,7 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                     for fp1, fp2 in product(data[comp1], data[comp2]):
                         pair_tag = "%s|%s" % ((fp1, fp2) if fp1 < fp2  else(fp2, fp1))
                         if pair_tag not in subject_cache or subject_cache[pair_tag] is None or 'p' not in subject_cache[pair_tag]:
-                            TASK_QUEUE.put(
+                            task_queue.put(
                                 [
                                     [[fp1, comp1], [fp2, comp2]],
                                     pair_tag, subject_cache
@@ -1484,37 +1484,37 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                                 #2, subset = 0.2
                             #)
                             #print(subject_cache[pair_tag])
-                            #TASK_QUEUE.join()
+                            #task_queue.join()
                             #sys.exit(1)
                         #else:
                         #    print(subject_cache[pair_tag])
 
 
 
-    TASK_QUEUE.join()
+    task_queue.join()
 
     return 0
 
 if __name__ == '__main__':
 
-    PARSER = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description='scan the directory of NGS files and process them'
     )
-    PARSER.add_argument(
+    parser.add_argument(
         '-i', '--input',
         metavar='DIR',
         type=str,
         help='the directory to scan',
         required=True,
     )
-    PARSER.add_argument(
+    parser.add_argument(
         '-c', '--cache',
         metavar='JSON',
         type=str,
         help='the file which contains the .json cache file',
         required=True,
     )
-    PARSER.add_argument(
+    parser.add_argument(
         '-r', '--results',
         metavar='RESULTS',
         type=str,
@@ -1522,25 +1522,25 @@ if __name__ == '__main__':
         required=True,
     )
 
-    PARSER.add_argument(
+    parser.add_argument(
         '-p', '--compartment',
         action='store_true',
         help='does the directory structure include compartment information',
     )
 
-    PARSER.add_argument(
+    parser.add_argument(
         '-d', '--replicate',
         action='store_true',
         help='does the directory structure include replicate information',
     )
 
-    PARSER.add_argument(
+    parser.add_argument(
         '-q', '--qfilt',
         action='store_true',
         help='scan qfilt.fna files',
     )
 
-    PARSER.add_argument(
+    parser.add_argument(
         '-n', '--node',
         type=str,
         required=True,
@@ -1548,7 +1548,7 @@ if __name__ == '__main__':
         default="1"
     )
 
-    PARSER.add_argument(
+    parser.add_argument(
         '-g', '--genes',
         metavar='genes',
         type=str,
@@ -1557,46 +1557,46 @@ if __name__ == '__main__':
     )
 
 
-    THREADING_LOCK = threading.Lock()
+    threading_lock = threading.Lock()
 
-    ARGS = None
-    RETCODE = -1
-    ARGS = PARSER.parse_args()
+    args = None
+    retcode = -1
+    args = parser.parse_args()
 
-    if not os.path.exists(ARGS.results):
-        os.mkdir(ARGS.results)
+    if not os.path.exists(args.results):
+        os.mkdir(args.results)
 
-    NODES_TO_RUN_ON = [int(k) for k in ARGS.node.split(",")]
+    nodes_to_run_on = [int(k) for k in args.node.split(",")]
 
-    GENES = ARGS.genes.split(',')
+    genes = args.genes.split(',')
 
     try:
-        REFS = [KNOWN_REFS[KNOWN_GENES.index(k)] for k in GENES]
+        refs = [known_refs[known_genes.index(k)] for k in genes]
     except:
         print(
-            'Please check that all the genes come from the following list %s' % str(KNOWN_GENES)
+            'Please check that all the genes come from the following list %s' % str(known_genes)
         )
         sys.exit(1)
 
 
-    for i, file in enumerate(REFS):
+    for i, file in enumerate(refs):
         with open(file) as fh:
             for record in SeqIO.parse(fh, "fasta"):
                 reflen = len(record.seq)
-                SPANS.append(
-                    [[k, k+WINDOW] for k in range(0, reflen-WINDOW, STRIDE)]
+                spans.append(
+                    [[k, k+window] for k in range(0, reflen-window, stride)]
                 )
 
-    #FORCE_DIVERSITY_ESTIMATION = True
+    #force_diversity_estimation = True
     #extract_and_collapse_well_covered_region(
         #"/data/collaborators/gert_van_zyl/A144/20080513/miSeqR2/rt/merged.msa",
         #"/data/collaborators/gert_van_zyl/A144/20080513/miSeqR2/rt", 2
     #)
-    #sys.exit(RETCODE)
+    #sys.exit(retcode)
 
-    CACHE_FILE = ARGS.cache
-    RETCODE = main(
-        ARGS.input, ARGS.results, ARGS.compartment, ARGS.replicate, ARGS.qfilt
+    cache_file = args.cache
+    retcode = main(
+        args.input, args.results, args.compartment, args.replicate, args.qfilt
     )
 
-    sys.exit(RETCODE)
+    sys.exit(retcode)
