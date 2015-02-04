@@ -37,12 +37,12 @@ global force_diversity_estimation
 # check_file_paths appears later in the multinomial_filter function.
 # check_file_paths_diversity appears later in the functions
 # collapse_translate_reads, count_collapsed_reads, extract_diagnostic_region,
-# and collapse_diagnostic_region. PATH_TO_THIS_FILE is the path to the
+# and collapse_diagnostic_region. path_to_this_file is the path to the
 # directory containing directoryscanner.py.
 
 check_file_paths = True
 check_file_paths_diversity = True
-PATH_TO_THIS_FILE = os.path.dirname(os.path.realpath(__file__))
+path_to_this_file = os.path.dirname(os.path.realpath(__file__))
 
 # applying ngs_task_runners.set_cache_flags sets check_file_paths and
 # check_file_paths_diversity as global variables.
@@ -58,7 +58,7 @@ ntr.set_cache_flags(check_file_paths, check_file_paths_diversity)
 # parser.
 
 known_refs = [
-    os.path.normpath(os.path.join(PATH_TO_THIS_FILE, k)) for k in [
+    os.path.normpath(os.path.join(path_to_this_file, k)) for k in [
         '../data/rt.fas', '../data/gag_p24.fas', '../data/env_C2V5.fas',
         '../data/pr.fas', '../data/hcv1bcore.fas'
     ]
@@ -333,7 +333,7 @@ def multinomial_filter(in_path, out_path, node):
         subprocess.check_call(
             [
                 '/usr/bin/bpsh', str(node), os.path.join(
-                    PATH_TO_THIS_FILE, "../julia/mcmc.jl"
+                    path_to_this_file, "../julia/mcmc.jl"
                 ),
                 '-t', '0.005', '-p', '0.999', '-f', filtered_out, '-j',
                 json_out, in_path
@@ -729,7 +729,7 @@ def run_tropism_prediction(env_gene, out_path, node):
 
     # Note the location of the v3_model.
 
-    v3_model = os.path.join(PATH_TO_THIS_FILE, "../data/V3.model")
+    v3_model = os.path.join(path_to_this_file, "../data/V3.model")
 
     # Construct the path to which to write the idepi.json.
 
@@ -831,7 +831,7 @@ def process_diagnostic_region(in_path_list, out_path, node):
 
     # Note the path to maketree.bf.
 
-    local_file = os.path.join(PATH_TO_THIS_FILE, "../hyphy", "maketree.bf")
+    local_file = os.path.join(path_to_this_file, "../hyphy", "maketree.bf")
 
     # Construct the path to which to write the output diversity.json file.
 
@@ -872,7 +872,7 @@ def process_diagnostic_region(in_path_list, out_path, node):
 
         print("Running diversity estimates on %s(node %d)" % (in_path, node), file=sys.stderr)
         try:
-            in_file = os.path.join(PATH_TO_THIS_FILE, in_path)
+            in_file = os.path.join(path_to_this_file, in_path)
             process = subprocess.Popen(
                 [
                     '/usr/bin/bpsh', str(node), '/usr/local/bin/HYPHYMP', local_file
@@ -930,7 +930,9 @@ def process_diagnostic_region(in_path_list, out_path, node):
 
 ### update_global_record ###
 
-# This function dumps all current information to the cache .json.
+# This function dumps all current information to the cache .json. It takes as
+# inputs the path to the data directory, the current gene, and the current 
+# analysis record.
 
 def update_global_record(base_path, gene, analysis_record):
     global threading_lock
@@ -947,6 +949,14 @@ def update_global_record(base_path, gene, analysis_record):
 
     threading_lock.release()
 
+
+
+
+### analysis_handler ###
+
+# This function arranges and feeds in the information required by the
+# handle_a_gene function. Its input is a node to run on.
+
 def analysis_handler(node_to_run_on):
     while True:
         (
@@ -958,6 +968,14 @@ def analysis_handler(node_to_run_on):
             node_to_run_on, median_read_length
         )
         task_queue.task_done()
+
+
+
+
+### compartmentalization_handler ###
+
+# This function arranges and feeds in the information required by the
+# check_compartmentalization function. Its input is a node to run on.
 
 def compartmentalization_handler(node_to_run_on):
     while True:
@@ -975,20 +993,41 @@ def compartmentalization_handler(node_to_run_on):
         task_queue.task_done()
 
 
+
+
+### set_update_json ###
+
+# Announce that the cache .json has been updated, with a given file for a given
+# reason.
+
 def set_update_json(path, text):
     print("Updated JSON for %s because of %s" % (path, text), file=sys.stderr)
     return True
 
-def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cache, node, median_read_length):
 
+
+
+### handle_a_gene ###
+
+
+def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cache, node, median_read_length):
+    
+    # Initialize the global variables and the update_json toggle.
+    
     global threading_lock
     global NGS_run_cache
-
     update_json = False
+    
+    # Construct the path to which to write the results files.
+    
     file_results_dir = os.path.join(file_results_dir_overall, gene)
+    
+    # If the directory does not exist, create it.
 
     if not os.path.exists(file_results_dir):
         os.makedirs(file_results_dir)
+        
+    # At the first gene,
 
     if index == 0:
         if 'filtered_fastq' in NGS_run_cache[base_path] and NGS_run_cache[base_path]['filtered_fastq'] is not None:
@@ -1006,6 +1045,9 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
                     file_results_dir,
                     "if 'reference_sequence' not in analysis_cache"
                 )
+                
+    # At all other genes,
+                
     else:
         prev_gene = genes[index-1]
         if 'discards' in NGS_run_cache[base_path][prev_gene] and NGS_run_cache[base_path][prev_gene]['discards'] is not None:
@@ -1187,6 +1229,14 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
     if update_json:
         update_global_record(base_path, gene, analysis_cache)
 
+
+
+
+### describe_vector ###
+
+# This function takes a vector as its argument and returns information on its
+# length, mean value, median value, and interquartile range.
+
 def describe_vector(vector):
     vector.sort()
     vector_length = len(vector)
@@ -1204,6 +1254,13 @@ def describe_vector(vector):
         }
 
 
+
+
+### check_keys_in_dict ###
+
+# This function checks a dictionary for a key, adds the key if it does not yet
+# exist, and populates the dictionary with information about it.
+
 def check_keys_in_dict(dic, k):
     if k[0] not in dic:
         dic[k[0]] = {}
@@ -1211,11 +1268,27 @@ def check_keys_in_dict(dic, k):
         return check_keys_in_dict(dic[k[0]], k[1:])
     return dic[k[0]]
 
+
+
+
+### hash_file ###
+
+# This function produces a hash file for an input file.
+
 def hash_file(filepath):
     mhh = hashlib.md5()
     with open(filepath, "rb") as fhh:
         mhh.update(fhh.read())
     return mhh.hexdigest()
+
+
+
+
+#------------------------------------------------------------------------------#
+#                                    Main                                      #
+#------------------------------------------------------------------------------#
+
+# The main loop.
 
 def main(directory, results_dir, has_compartment_data, has_replicate_counts, scan_q_filt):
 
