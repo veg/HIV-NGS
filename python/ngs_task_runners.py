@@ -43,7 +43,7 @@ def bam_to_fasta (in_path, out_path):
         return msa_out
     try:
         print ("Running samtools sort on %s to %s" % (in_path,sorted_bam), file = sys.stderr)
-        subprocess.check_call (['/usr/bin/samtools', 'sort', in_path, sorted_bam],stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
+        subprocess.check_call (['/usr/local/bin/samtools', 'sort', in_path, sorted_bam],stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
         shutil.move (sorted_bam + ".bam", in_path)
         subprocess.check_call (['/opt/share/python3.3/bam2msa', in_path, msa_out],stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL) 
     except subprocess.CalledProcessError as e:
