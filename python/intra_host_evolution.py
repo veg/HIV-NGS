@@ -160,7 +160,7 @@ def main (ngs_cache, host_cache_path, nodes_to_run_on, genes, has_compartment, h
              
     global host_cache
     global task_queue
-                
+    
     if os.path.exists(host_cache_path):
         with open (host_cache_path, "r") as fh:
             host_cache = json.load (fh)
