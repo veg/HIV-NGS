@@ -175,6 +175,7 @@ function rategrid(n::Integer, error_threshold::Float64)
 		        union! (uniques, [a M b c])
                 union! (uniques, [a b M c])
                 union! (uniques, [a b c M])
+
             	
             end
         end
