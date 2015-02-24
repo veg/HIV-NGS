@@ -96,6 +96,7 @@ DataSetFilter filteredData = CreateFilter (allData,1,"",excludeThese[speciesInde
 _normalizeSequenceNamesInAFilter ("filteredData");
 
 if (filteredData.species > 1) {
+    allTree = InferTreeTopology (1);
     Tree allTree = allTree;
     allTreeAVL = allTree ^ 0;
     bls = getNucRevBranchLengthsAndParameters ("filteredData", "allTree");
