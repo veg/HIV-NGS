@@ -90,7 +90,7 @@ stride = 30
 # results list. force_qfilt_rerun causes qfilt to be run automatically,
 # regardless of whether filtered_fastq is in NGS_run_cache.
 
-force_diversity_estimation = False
+force_diversity_estimation = True
 force_qfilt_rerun = False
 
 
@@ -265,13 +265,13 @@ def count_collapsed_reads(in_path, out_path, node):
     merged_json = join(out_path, "prot_coverage.json")
 
     # If the .json cache file already exists, load it.
-
+    '''
     if check_file_paths_diversity and os.path.exists(merged_json):
         with open(merged_json) as fhh:
             if len(json.load(fhh)) > 0:
                 print("[CACHED]")
                 return merged_json
-
+    '''
 
     # Use bpsh to call the seqcoverage utility on the coverage .json file,
     # using the selected node.
@@ -285,23 +285,18 @@ def count_collapsed_reads(in_path, out_path, node):
                 #]
             #)
         #)
-        subprocess.check_call(
-            [
-                '/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o',
-                merged_json, '-t', 'protein', in_path
-            ],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-
+        process = subprocess.Popen (['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path], stdout = subprocess.DEVNULL, stderr = subprocess.PIPE, stdin = subprocess.DEVNULL, universal_newlines = True) 
+        ignored, json_out = process.communicate ()
+        json_out = json.loads (json_out);
     # If an error occurs, say so.
 
     except subprocess.CalledProcessError as err:
         print('ERROR: Protein coverage call failed', err, file=sys.stderr)
-        return None
+        return (None, None)
 
     # Return the path to the .json cache file.
 
-    return merged_json
+    return (merged_json, json_out)
 
 
 
@@ -895,8 +890,8 @@ def process_diagnostic_region(in_path_list, out_path, node):
 
             except ValueError:
                 print(
-                    'ERROR HyPhy call(local_file %s) %s/%s' % (
-                        in_file, out.decode('UTF-8'), err.decode('UTF-8')
+                    'ERROR HyPhy call (%s on %s) %s/%s' % (
+                        in_file, local_file, out.decode('UTF-8'), err.decode('UTF-8')
                     ),
                     file=sys.stderr
                 )
@@ -1127,20 +1122,15 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
             )
 
     if 'merged_msa_prot' in analysis_cache and analysis_cache['merged_msa_prot'] is not None:
-        if 'merged_json' not in analysis_cache:
-            analysis_cache['merged_json'] = count_collapsed_reads(
-                analysis_cache['merged_msa_prot'], file_results_dir, node
-            )
+        if 'merged_json' not in analysis_cache or 'merged_counts' not in analysis_cache:
+            analysis_cache ['merged_json'], analysis_cache ['merged_counts'] = count_collapsed_reads (analysis_cache ['merged_msa_prot'], file_results_dir, node)
             update_json = set_update_json(
                 base_path, "'merged_json' not in analysis_cache"
             )
         else:
             with open(analysis_cache['merged_json'], 'r') as fhh:
                 if len(json.load(fhh)) == 0:
-                    analysis_cache['merged_json'] = count_collapsed_reads(
-                        analysis_cache['merged_msa_prot'], file_results_dir,
-                        node
-                    )
+                    analysis_cache ['merged_json'], analysis_cache ['merged_counts'] = count_collapsed_reads (analysis_cache ['merged_msa_prot'], file_results_dir, node)
                     update_json = set_update_json(
                         file_results_dir, "len(json.load(fhh)) == 0"
                     )
@@ -1401,7 +1391,7 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
 
 
                 if not os.path.exists(file_results_dir_overall):
-                    os.makedirs(file_results_dir)
+                    os.makedirs(file_results_dir_overall)
 
                 if 'in_fasta' not in NGS_run_cache[base_path] and 'in_fastq' not in NGS_run_cache[base_path]:
                     NGS_run_cache[base_path]['md5'] = hash_file(base_file)
@@ -1459,12 +1449,9 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                 if 'filtered_fastq' in NGS_run_cache[base_path] and NGS_run_cache[base_path]['filtered_fastq'] is not None:
                     try:
                        with open(join(file_results_dir_overall, 'qfilt.json')) as fhh:
-                            jsn = json.load(fhh)['run summary'][
-                                'original read length distribution:'
-                            ]
-                            median_read_length = max(
-                                100, jsn['mean'] - jsn['standard deviation']
-                            )
+                        js = json.load (fhh)
+                        median_read_length = max (100, js['run summary']['original read length distribution:']['mean'] - js['run summary']['original read length distribution:']['standard deviation'])
+                        NGS_run_cache [base_path] ['read_stats'] = js['run summary']
                     except:
                         pass
 

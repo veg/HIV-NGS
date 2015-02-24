@@ -97,8 +97,8 @@ def run_hyphy_div (node_to_run_on):
             command =  ['/usr/bin/bpsh', str(node_to_run_on), '/usr/local/bin/HYPHYMP', hbf]
             process = subprocess.Popen (command, stdin = subprocess.PIPE, stderr = subprocess.PIPE, stdout = subprocess.PIPE) 
             out, err = process.communicate (bytes(infile,'UTF-8'))
-            if len (err) or len (out):
-                print (err, out)
+            if len (err):
+                print ("Call to %s with input '%s' generated an error: `%s`" % (' '.join (command), infile, err))
             
             write_to_cache_lock.acquire()
             files['rates.tsv'] = out_file

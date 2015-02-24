@@ -94,12 +94,14 @@ DataSetFilter allDataCodon = CreateFilter (allData,3,"",excludeThese[speciesInde
 DataSetFilter filteredData = CreateFilter (allData,1,"",excludeThese[speciesIndex] == 0);
 
 _normalizeSequenceNamesInAFilter ("filteredData");
-allTree = InferTreeTopology (1);
-Tree allTree = allTree;
-allTreeAVL = allTree ^ 0;
-bls = getNucRevBranchLengthsAndParameters ("filteredData", "allTree");
 
-fprintf (output_file + ".nwk", CLEAR_FILE, PostOrderAVL2StringDistances (allTreeAVL, bls["lengths"]));
+if (filteredData.species > 1) {
+    Tree allTree = allTree;
+    allTreeAVL = allTree ^ 0;
+    bls = getNucRevBranchLengthsAndParameters ("filteredData", "allTree");
+
+    fprintf (output_file + ".nwk", CLEAR_FILE, PostOrderAVL2StringDistances (allTreeAVL, bls["lengths"]));
+}
 
 GetDataInfo (site_map, allDataCodon);
 
