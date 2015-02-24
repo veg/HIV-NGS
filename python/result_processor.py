@@ -336,12 +336,12 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                     store_dict = store_dict[d[id]]
                 
                 
-                tn93 = d[id + 3]
+                tn93 = d[id + 5]
+                                
                 if tn93 is None:
                     continue
 
                 store_dict[d[1]]['tn93_diversity'] = tn93 * 0.01
-                #print (store_dict, "\n", d[1], "\n\n")
             except (KeyError, AttributeError, TypeError) as e:
                 continue
             
@@ -409,7 +409,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         
                         add_key_if_missing (store_dict, store_here, {})
                         store_dict [store_here]['tn93_divergence'] = distance_info['Mean']
-                        
+
                         if 'Histogram' in distance_info:
                            store_dict [store_here]['tn93_divergence_histogram'] =  distance_info['Histogram']
                            
