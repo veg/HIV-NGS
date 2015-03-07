@@ -132,20 +132,20 @@ function rategrid(n::Integer, error_threshold::Float64)
     else   
         rates = logspace (-4,log10(0.1),n)
     end 
-    print (rates)
+    #print (rates)
     
     # Initialize uniques, an empty two-dimensional array. Uniques is initialized
     # as a set to avoid duplicate rows.
     
-    uniques = Set()
+    uniques = Set{Vector{Float64}}()
     
     # Build uniques using the error threshold.
     
     M = 1. - 3. * error_threshold
-	union! (uniques, [M error_threshold error_threshold error_threshold])
-	union! (uniques, [error_threshold M error_threshold error_threshold])
-	union! (uniques, [error_threshold error_threshold M error_threshold])
-	union! (uniques, [error_threshold error_threshold error_threshold M])
+	union! (uniques, {[M,error_threshold,error_threshold,error_threshold]})
+	union! (uniques, {[error_threshold,M,error_threshold,error_threshold]})
+	union! (uniques, {[error_threshold,error_threshold,M,error_threshold]})
+	union! (uniques, {[error_threshold,error_threshold,error_threshold,M]})
         
     # For each value in the rates vector,
         
@@ -158,10 +158,10 @@ function rategrid(n::Integer, error_threshold::Float64)
 	    for i1 in 1:4
 	        for i2 in 1:4
 	            if i1 != i2
-                    rate_vec = fill (error_threshold, (1,4))
+                    rate_vec = fill (error_threshold, (4))
 	                rate_vec[i1] = M
 	                rate_vec[i2] = a
-	                union! (uniques, rate_vec)
+	                union! (uniques, {rate_vec})
 	            end
 	        end
 	    end
@@ -171,10 +171,10 @@ function rategrid(n::Integer, error_threshold::Float64)
         for b in rates
             for c in rates
                 M = 1. - (a + b + c)
-		        union! (uniques, [M a b c])
-		        union! (uniques, [a M b c])
-                union! (uniques, [a b M c])
-                union! (uniques, [a b c M])
+		        union! (uniques, {[M,a,b,c]})
+		        union! (uniques, {[a,M,b,c]})
+                union! (uniques, {[a,b,M,c]})
+                union! (uniques, {[a,b,c,M]})
 
             	
             end
@@ -193,7 +193,7 @@ function rategrid(n::Integer, error_threshold::Float64)
     # For each row in uniques,
     
     for r in uniques
-	    #print (r)
+	    #println (r)
 	    
 	    # Set the present row of the rate grid equal to the present row of
 	    # uniques.
@@ -208,6 +208,7 @@ function rategrid(n::Integer, error_threshold::Float64)
     # Print the length of uniques and return the rate grid.
     
     println (length (uniques))
+    #print (uniques)
     return rg
 end
 
@@ -298,7 +299,7 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     # Compute log (rates)
     
     log_rates = log (rates)
-    
+     
     # For each site of the input .msa, 
     
     for i in 1:nsites
@@ -343,6 +344,7 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
             else
                 @inbounds conditionals[j, i] = exp(s)
             end
+            #println (conditionals [j, i])
             #if (i == 771) && conditionals[j, i] > 0
             #    println (conditionals[j, i], "\t", join (rates[j , :], "\t"))
             #end

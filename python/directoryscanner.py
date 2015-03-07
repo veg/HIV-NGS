@@ -90,7 +90,7 @@ stride = 30
 # results list. force_qfilt_rerun causes qfilt to be run automatically,
 # regardless of whether filtered_fastq is in NGS_run_cache.
 
-force_diversity_estimation = True
+force_diversity_estimation = False
 force_qfilt_rerun = False
 
 
