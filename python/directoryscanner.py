@@ -468,11 +468,11 @@ def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_ov
 # run on, and some optional parameters.
 
 def extract_diagnostic_region(in_path, out_path, node, start=0, end=1000000, cov=0.95):
-    #print(
-        #"Extracting diagnostic region [%d-%d, coverage = %g] for %s(node %d) "
-        #% (start, end, cov, in_path, node),
-        #file=sys.stderr
-    #)
+    print(
+        "Extracting diagnostic region [%d-%d, coverage = %g] for %s(node %d) "
+        % (start, end, cov, in_path, node),
+        file=sys.stderr
+    )
 
     # Construct the path to which the output file will be written.
 
@@ -687,7 +687,7 @@ def extract_and_collapse_well_covered_region(in_path, out_path, node, read_lengt
 
                 extracted = extract_diagnostic_region(
                     in_path, out_path, node, start, end, cov=min(
-                        0.95, float(max(window, read_length))/(end-start)
+                        0.95, float(max(window, read_length*0.95))/(end-start)
                     )
                 )
 
