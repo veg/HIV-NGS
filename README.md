@@ -22,17 +22,21 @@ If the data files are not divided into compartments or replicates then each file
 
 If compartment or replicate information about the data is not available, the appropriate level of sub-directory can be omitted.
 
+The data directory should also contain a subfolder titled 'results', which should in turn contain a subfolder titled 'web-ready'. The following commands will create them:
+
+    $ mkdir /data/NGS-DATA/results
+    $ mkdir /data/NGS-Data/results/web-ready
+
 # 2 - Processing
 
 ## 2.1 - Directory Scanner
 
-The first step is to run directoryscanner.py on the directory containing the data. This requires that a results directory be created in advance.
+The first step is to run directoryscanner.py on the directory containing the data. If the directory structure includes both compartment and replicate information, use the following command:
 
     $ cd /data/NGS-DATA/
-    $ mkdir results
-    $ /opt/python-3.3.1/bin/python3 /opt/NGSpipeline/python/directoryscanner.py -i `pwd` -r `pwd` -c `pwd`/results/ds-cache.json -p -d -n 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+    $ /opt/python-3.3.1/bin/python3 /opt/NGSpipeline/python/directoryscanner.py -i `pwd` -r `pwd` -c `pwd`/results/ds-cache.json -d ID DATE COMPARTMENT REPLICATE -n 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
-Omit the -d flag if the directory structure does not include replicates and omit the -p flag if it does not include compartments.
+If the directory structure does not include replicate information, replace the value REPLICATE after the -d flag with NONE. If it does not include compartment information, replace the value COMPARTMENT after the -d flag with NONE.
 
 ## 2.2 - Intra Host Evolution
 
