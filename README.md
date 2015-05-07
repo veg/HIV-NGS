@@ -56,7 +56,6 @@ Next we run pairwise_distances.py.
 
 Finally, we can use result_processor.py to produce web-ready output files.
 
-    $ mkdir results/web-ready/
     $ /opt/python-3.3.1/bin/python3 /opt/NGSpipeline/python/result_processor.py -o `pwd`/results/web-ready/ -j `pwd`/results/web-ready/results.json -c `pwd`/results/ds-cache.json -d `pwd`/results/ihe-cache.json -w `pwd`/results/pd-cache.json -p -r
 
 Omit the -r flag if the directory structure does not include replicates and omit the -p flag if it does not include compartments.
