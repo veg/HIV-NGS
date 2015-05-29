@@ -256,7 +256,8 @@ end
 #-----------------------------------lmc----------------------------------------#
 
 
-# Define a function to return the lmc value for a given site.
+# Define a function to return the lmc (logarithm of multinomial coefficient)
+#value for a given site.
 
 function lmc(counts::Array{Int64,2}, site::Int64, nchars::Int64)
 
