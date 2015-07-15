@@ -33,7 +33,7 @@ def codon_aligner (in_path, out_path, node, ref = 'HXB2_prrt'):
     except subprocess.CalledProcessError as e:
         print ('ERROR: bealign call failed failed',' '.join (command),file = sys.stderr)
         return None, None
-    return bam_out, discards
+    return bam_out, discards if isfile (discards) else None 
     
 def bam_to_fasta (in_path, out_path):
     print ("Running bam2msa on %s " % in_path, file = sys.stderr)
