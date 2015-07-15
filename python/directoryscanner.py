@@ -316,7 +316,7 @@ def multinomial_filter(in_path, out_path, node):
 
     # If these files already exist, return.
 
-    if check_file_paths and os.path.exists(filtered_out) and os.path.exists(json_out):
+    if check_file_paths and os.path.exists(filtered_out) and os.path.exists(json_out) and os.path.getsize(json_out) > 0 :
         return filtered_out, json_out
 
     # Use bpsh to apply the Julia script mcmc.jl to the input
@@ -976,7 +976,7 @@ def analysis_handler(node_to_run_on):
 def compartmentalization_handler(node_to_run_on):
     while True:
         in_paths, tag, analysis_record = task_queue.get()
-        cmp = check_compartmenalization(in_paths, node_to_run_on, subset=0.33)
+        cmp = check_compartmenalization(in_paths, node_to_run_on, subset=0.5)
         threading_lock.acquire()
         analysis_record[tag] = cmp
 
@@ -1081,8 +1081,8 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
             else:
                 analysis_cache['aligned_msa'] = None
 
-    if 'aligned_msa' in analysis_cache and analysis_cache['aligned_msa'] is not None:
-        if 'filtered_msa' not in analysis_cache or 'json_rates' not in analysis_cache:
+    if 'aligned_msa' in analysis_cache and analysis_cache['aligned_msa'] is not None :
+        if 'filtered_msa' not in analysis_cache or 'json_rates' not in analysis_cache or os.path.getsize(analysis_cache['json_rates']) == 0:
             (
                 analysis_cache['filtered_msa'], analysis_cache['json_rates']
             ) = multinomial_filter(
@@ -1281,7 +1281,7 @@ def hash_file(filepath):
 
 # The main loop.
 
-def main(directory, results_dir, has_compartment_data, has_replicate_counts, scan_q_filt):
+def main(directory, results_dir, directory_structure, scan_q_filt, force_these_steps):
 
     global NGS_run_cache
     global task_queue
@@ -1328,6 +1328,7 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
 
     #sys.exit(0)
 
+    today_as_str = datetime.date.today().strftime ("%Y%m%d")
 
     for root, dirs, files in os.walk(directory):
         for each_file in files:
@@ -1343,52 +1344,47 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
                     NGS_run_cache[base_path] = {'id' : len(NGS_run_cache) + 1}
 
                 print('Working on %s...' % base_file, file=sys.stderr)
+                dirn = root
+                
+                directory_components = []
 
-
-                if has_replicate_counts:
-                    if has_compartment_data:
-                        dirn, replicate = os.path.split(root)
-                        dirn, compartment = os.path.split(dirn)
-                        dirn, sample_date = os.path.split(dirn)
-                        dirn, patient_id = os.path.split(dirn)
-                        file_results_dir_overall = os.path.join(
-                            results_dir, patient_id, sample_date, compartment,
-                            replicate
-                        )
-                        NGS_run_cache[base_path]['patient_id'] = patient_id
-                        NGS_run_cache[base_path]['sample_date'] = sample_date
-                        NGS_run_cache[base_path]['compartment'] = compartment
-                        NGS_run_cache[base_path]['replicate'] = replicate
-                    else:
-                        dirn, replicate = os.path.split(root)
-                        dirn, sample_date = os.path.split(dirn)
-                        dirn, patient_id = os.path.split(dirn)
-                        file_results_dir_overall = os.path.join(
-                            results_dir, patient_id, sample_date, replicate
-                        )
-                        NGS_run_cache[base_path]['patient_id'] = patient_id
-                        NGS_run_cache[base_path]['sample_date'] = sample_date
-                        NGS_run_cache[base_path]['replicate'] = replicate
-                else:
-                    if has_compartment_data:
-                        dirn, compartment = os.path.split(root)
-                        dirn, sample_date = os.path.split(dirn)
-                        dirn, patient_id = os.path.split(dirn)
-                        file_results_dir_overall = os.path.join(
-                            results_dir, patient_id, sample_date, compartment
-                        )
-                        NGS_run_cache[base_path]['patient_id'] = patient_id
-                        NGS_run_cache[base_path]['sample_date'] = sample_date
-                        NGS_run_cache[base_path]['compartment'] = compartment
-                    else:
-                        dirn, sample_date = os.path.split(root)
-                        dirn, patient_id = os.path.split(dirn)
-                        file_results_dir_overall = os.path.join(
-                            results_dir, patient_id, sample_date
-                        )
-                        NGS_run_cache[base_path]['patient_id'] = patient_id
-                        NGS_run_cache[base_path]['sample_date'] = sample_date
-
+                while not os.path.samefile(directory, dirn):
+                    dirn, part = os.path.split(dirn)
+                    directory_components.append (part)
+                    
+                directory_components.reverse()
+                    
+                directory_components = directory_components[max(0,len (directory_components)-len (directory_structure)):]
+                
+                for i,v in enumerate (directory_structure):
+                    try:
+                        if v == "ID":
+                            key = "patient_id"
+                        elif v == "DATE":
+                            key = "sample_date"
+                        elif v == "COMPARTMENT":
+                            key = 'compartment'
+                        elif v == "REPLICATE":
+                            key = 'replicate'
+                            
+                        NGS_run_cache[base_path][key] = directory_components[i]        
+                        
+                    except IndexError as err:
+                        if v == "ID":
+                            raise Exception ("Missing ID in %s" % directory)
+                        elif v == "DATE":
+                            NGS_run_cache[base_path]['sample_date'] = today_as_str
+                        else:
+                            NGS_run_cache[base_path][key] = "missing"
+                            
+                respath = []
+                for k in ["patient_id", "sample_date", "compartment", "replicate"]:
+                    if k in NGS_run_cache[base_path]:
+                        respath.append (NGS_run_cache[base_path][k])
+                        
+                #print (respath)
+                    
+                file_results_dir_overall = os.path.join(results_dir, *respath)
 
                 if not os.path.exists(file_results_dir_overall):
                     os.makedirs(file_results_dir_overall)
@@ -1490,7 +1486,7 @@ def main(directory, results_dir, has_compartment_data, has_replicate_counts, sca
     #task_queue.join()
 
     task_queue = queue.Queue()
-    if 'F_ST' not in NGS_run_cache:
+    if 'F_ST' not in NGS_run_cache or force_these_steps and 'F_ST' in force_these_steps:
         NGS_run_cache['F_ST'] = {}
 
     compartmentalization_sets = {}
@@ -1575,6 +1571,7 @@ if __name__ == '__main__':
         help='the file which contains the .json cache file',
         required=True,
     )
+    
     parser.add_argument(
         '-r', '--results',
         metavar='RESULTS',
@@ -1583,17 +1580,16 @@ if __name__ == '__main__':
         required=True,
     )
 
+    
     parser.add_argument(
-        '-p', '--compartment',
-        action='store_true',
-        help='does the directory structure include compartment information',
+        '-d', '--directory-structure',
+        metavar = 'META',
+        nargs = 4,
+        dest = 'directory_structure',
+        choices = ['ID', 'DATE', 'COMPARTMENT', 'REPLICATE', 'NONE'],
+        default = ['ID','DATE','NONE','NONE']
     )
-
-    parser.add_argument(
-        '-d', '--replicate',
-        action='store_true',
-        help='does the directory structure include replicate information',
-    )
+ 
 
     parser.add_argument(
         '-q', '--qfilt',
@@ -1616,14 +1612,29 @@ if __name__ == '__main__':
         help='the comma separated list of genes to include in the comparison',
         default='env,gag,rt'
     )
-
+    
+    parser.add_argument(
+        '-f', '--force',
+        metavar='steps',
+        action = 'append',
+        help='force certain steps to ignore cached results',
+        choices= ['F_ST']
+    )
 
     threading_lock = threading.Lock()
 
     args = None
     retcode = -1
     args = parser.parse_args()
+    
+    # check path specification 
+    
+    args.directory_structure = [k for k in args.directory_structure if k != "NONE"]
+    
+    if 'ID' not in args.directory_structure or 'DATE' not in args.directory_structure:
+        raise Exception ('ID and DATE must be a part of the directory structure')
 
+    
     if not os.path.exists(args.results):
         os.mkdir(args.results)
 
@@ -1657,7 +1668,7 @@ if __name__ == '__main__':
 
     cache_file = args.cache
     retcode = main(
-        args.input, args.results, args.compartment, args.replicate, args.qfilt
+        args.input, args.results, args.directory_structure, args.qfilt, args.force
     )
 
     sys.exit(retcode)
