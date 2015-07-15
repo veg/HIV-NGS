@@ -5,12 +5,13 @@ from os.path import join, splitext, isfile, split
 from Bio import SeqIO, AlignIO
 from copy import copy
 from scipy import stats
+from ConsensusBuilder import *
 import numpy as np
 import math
 
 DRAMs = {}
 
-_clone_name_replacement = re.compile ("^cluster_[0-9]+")
+_clone_name_replacement = re.compile ("^cluster")
 
 def parse_a_date (sample_date):
     try:
@@ -29,7 +30,6 @@ def describe_vector (vector):
     vector.sort()
     l = len (vector)
     return {'count': l, 'min': vector[0], 'max': vector[-1], 'mean': sum(vector)/l, 'median':  vector [l//2] if l % 2 == 1 else 0.5*(vector[l//2-1]+vector[l//2]), "IQR": [vector [l//4], vector [(3*l)//4]] }
-
 
 
 def coverage_info (coverage, min_cov = 500):
@@ -170,8 +170,6 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                       
                     dir_name = '_'.join (dir_name)
                     
-                    
-                    
                     merged_msa_to_info [data['merged_msa']] = [pid, date, gene, compartment, replicate]
                     current_step = "Checking for merged_json"
                                     
@@ -188,13 +186,17 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                                                   
                     if ci[0] is not None:    
                         
+                        cell_entry = None
+                        
                         if 'overall_region' in data:
                             files_to_copy.append ([data['overall_region'][1],dir_name])
                             spanned_region = "-".join([str (k) for k in ci[0]])
                             
+                            
                             cell_entry = {'text' : spanned_region,
                                           'link' : join(dir_name,split(data['overall_region'][1])[1]),
-                                          'target' : dir_name + "_" + spanned_region + ".fas"}
+                                          'target' : dir_name + "_" + spanned_region + ".fas",
+                                          'consensus': None}
                                           
                             #print (cell_entry)
                             
@@ -244,7 +246,12 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         files_to_copy.append ([data['json_rates'], None])
                         with open (files_to_copy[-1][0]) as fh:
                             current_step = "Loading json_rates %s" % files_to_copy[-1][0]
-                            json.load (fh)
+                            json_rates = json.load (fh)
+                            
+                        json_rates ['consensus'] = consensus (json_rates, 0.25, False)
+                        files_to_copy[-1][1] = json_rates
+                        if cell_entry is not None:
+                            cell_entry ['consensus'] = json_rates ['consensus']
                                  
                         #print (row)         
                         if intrahost_info is not None:
@@ -278,7 +285,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                                         
                                         
                             except (KeyError, AttributeError, TypeError, FileNotFoundError, ValueError) as e:
-                                #print ("Failing key %s (%s)" % (gene, str (e)), file = sys.stderr)
+                                #print ("Failing intrahost_info key %s (%s)" % (gene, str (e)), file = sys.stderr)
                                 pass
                     else:
                         row.extend ([None,ci[1]['median'],None,None,None,None,None])
@@ -297,10 +304,15 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
             
                 for file in files_to_copy:
                     if file[1] is not None:
-                        with open (join(result_path,split(file[0])[1]), "w") as oh:
-                             with open (file[0], 'r') as fh:
-                                for record in SeqIO.parse (fh, "fasta"):
-                                    print (">%s\n%s\n" % (re.sub(_clone_name_replacement, file[1], record.name), record.seq), file = oh)
+                        if type (file[1]) is str:
+                            with open (join(result_path,split(file[0])[1]), "w") as oh:
+                                 with open (file[0], 'r') as fh:
+                                    for record in SeqIO.parse (fh, "fasta"):
+                                        print (">%s\n%s\n" % (re.sub(_clone_name_replacement, file[1], record.name), record.seq), file = oh)
+                        elif type (file[1]) is dict:
+                            copied_file = shutil.copy (file[0], result_path)
+                            with open (copied_file, 'w') as fh:
+                                json.dump (file[1], fh)
                                
                     
                     else:
@@ -343,27 +355,31 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
 
                 store_dict[d[1]]['tn93_diversity'] = tn93 * 0.01
             except (KeyError, AttributeError, TypeError) as e:
+                print (e, file = sys.stderr)
                 continue
             
         for pair, distance_info in pairwise_distance_info.items():
-            if short:
-                pair_info = pair.split ('-')
-                if len (pair_info) == 3:
-                    tag1 = id_to_pid_date[int (pair_info[0])]
-                    tag2 = id_to_pid_date[int (pair_info[1])]
-                    gene = pair_info[2]
-                    offset = 0
+            try:
+                if short:
+                    pair_info = pair.split ('-')
+                    if len (pair_info) == 3:
+                        tag1 = id_to_pid_date[int (pair_info[0])]
+                        tag2 = id_to_pid_date[int (pair_info[1])]
+                        gene = pair_info[2]
+                        offset = 0
+                    else:
+                        continue
                 else:
-                    continue
-            else:
-                pair_info = pair.split ('|')
-                if len (pair_info) == 2:
-                    tag1 = merged_msa_to_info [pair_info[0]]
-                    tag2 = merged_msa_to_info [pair_info[1]]
-                    gene = tag1 [2]
-                    offset = 1
-                else:
-                    continue
+                    pair_info = pair.split ('|')
+                    if len (pair_info) == 2:
+                        tag1 = merged_msa_to_info [pair_info[0]]
+                        tag2 = merged_msa_to_info [pair_info[1]]
+                        gene = tag1 [2]
+                        offset = 1
+                    else:
+                        continue
+            except (KeyError) as e:
+                continue
                     
             
             pid = tag1[0]
@@ -442,8 +458,9 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                             store_here.append ([info1[-1], info2[-1], pair_data])
                             
 
-                        except:
-                            raise
+                        except (KeyError) as e:
+                            continue
+                        
                     
          
     processed['data'].sort (key = lambda row : row[0: (3 + (1 if has_compartment else 0) + (1 if has_replicate else 0))])
