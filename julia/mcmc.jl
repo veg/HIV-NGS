@@ -447,8 +447,15 @@ end
 # Define a function to compute ll and dir.
 
 function jll(conditionals::Array{Float64,2}, scalers::Array{Float64,1}, weights::Array{Float64,2}, alpha::Float64)
+
+    # ll is the log likelihood
+
     ll = sum(log(weights * conditionals) + scalers')
+    
+    # dir is the value of ldensity
+    
     dir = ldensity(weights, alpha)
+    
     return (ll, dir)
 end
 
@@ -468,7 +475,8 @@ function mcmc(
         expected_nsamples::Int64=100,
         alpha::Float64=0.5)
         
-    # Compute nburnin from the inputs.
+    # Compute nburnin, the number of "burn-in" samples for the MCMC process,
+    # from the inputs.
 
     nburnin = iround(chain_length * burnin_fraction)
     
