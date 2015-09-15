@@ -36,7 +36,7 @@ const AMBIGS = Dict{String, Char}(
 
 #----------------------------------index---------------------------------------#
 
-# Define a function that returns all indices at which a string matches a 
+# Define a function that returns the first index at which a string matches a 
 # certain character.
 
 function index(s::String, c::Char)
@@ -62,11 +62,13 @@ end
 #---------------------------------countmsa-------------------------------------#
 
 # Define a function to count, for each character of an alphabet, the number
-# of times that character appears in each sequence of an MSA file.
+# of times that character appears at each locus of an MSA file.
 
 function countmsa(msa::String, alphabet::String)
 
-    # Initialize the counters, counts and ncols.
+    # Initialize two variables: 'counts' and ncols'. 'counts' will be the array
+    # that holds the counts of each nucleotide at each locus. 'ncols' will be 
+    # the number of loci in the alignment.
     
     counts = nothing
     ncols = 0
@@ -76,15 +78,22 @@ function countmsa(msa::String, alphabet::String)
     
     for (i, (name, seq)) in enumerate(FastaReader(msa))
     
-        # If the counters are empty, assign to ncols the length of the current
-        # sequence and initialize counts as a vector of zeros with length ncols.
+        # If 'counts' is freshly initialized, do the following:
+        #
+        # 1. Assign to ncols the length of the current sequence. In a proper MSA,
+        #    all sequences have the same length, so this is simply the number of
+        #    loci in the alignment.
+        #
+        # 2. Initialize 'counts' as an array of zeros with size 'ncols' by 4.
+        #    This will be the final shape of the array, since there are 'ncols'
+        #    loci and 4 nucleotides.
     
         if counts == nothing
             ncols = length(seq)
             counts = zeros(Int64, (ncols, 4))
             
-        # If the counters are not empty, check that ncols == length(seq), and
-        # say something if they are not equal.
+        # If 'counts' is not freshly initialized, check that ncols == length(seq),
+        # and say something if they are not equal.
             
         elseif length(seq) != ncols
             error("provided file is not an MSA! length($name) = $(length(seq)), not $ncols!")
@@ -132,14 +141,16 @@ function rategrid(n::Integer, error_threshold::Float64)
     else   
         rates = logspace (-4,log10(0.1),n)
     end 
-    #print (rates)
     
     # Initialize uniques, an empty two-dimensional array. Uniques is initialized
-    # as a set to avoid duplicate rows.
+    # as a set to avoid duplicate rows. It will eventually hold a complete
+    # list of the multinomial distributions allowed by the rates vector.
     
     uniques = Set{Vector{Float64}}()
     
-    # Build uniques using the error threshold.
+    # Build uniques using the error threshold. We begin with the four most 
+    # extreme cases: those in which the probability mass is centered as 
+    # much as possible on one nucleotide.
     
     M = 1. - 3. * error_threshold
 	union! (uniques, {[M,error_threshold,error_threshold,error_threshold]})
@@ -151,7 +162,9 @@ function rategrid(n::Integer, error_threshold::Float64)
         
     for a in rates
     
-        # Add a row to the uniques array.
+        # Add 12 rows to the rates vector. These reperesent all of the ways in
+        # which one the four distributions added previously can be disturbed
+        # in one dimension.
     
         M = 1. - a - 2. * error_threshold
         
@@ -166,10 +179,19 @@ function rategrid(n::Integer, error_threshold::Float64)
 	        end
 	    end
 	    
-	    # Add four more rows to the uniques array.
+	# Next we introduce two more values from the rates vector, so that
+	# we have three values that together define a multinomial
+	# distribution. 
+	
+	# For every pair of rates, 
                 
         for b in rates
             for c in rates
+            
+            # Add four more lines to 'uniques.' In the grand scheme, this
+            # fills out the discretization of the space of multinomial
+            # distributions.
+            
                 M = 1. - (a + b + c)
 		        union! (uniques, {[M,a,b,c]})
 		        union! (uniques, {[a,M,b,c]})
@@ -180,13 +202,17 @@ function rategrid(n::Integer, error_threshold::Float64)
             end
         end
     end
+    
+    # The set of 'uniques' is now complete.
+    
     done()
     
     # Initialize a counter i.
     
     i = 1
     
-    # Initialize an empty rate grid.
+    # Initialize an empty rate grid. We will copy the information from uniques
+    # into it so that we can return an array instead of a set.
     
     rg = Array (Float64, (length (uniques),4))
     
@@ -208,7 +234,6 @@ function rategrid(n::Integer, error_threshold::Float64)
     # Print the length of uniques and return the rate grid.
     
     println (length (uniques))
-    #print (uniques)
     return rg
 end
 
