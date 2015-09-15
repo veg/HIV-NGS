@@ -320,7 +320,8 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     # Initialize arrays for conditionals and scalers. 'conditionals' will eventually
     # be returned as an array containing the conditional probability of each entry
     # in rates at each site with the given nucleotide counts. 'scalers' will 
-    # be reaturned as an array containing
+    # be reaturned as an array containing a list of factors used to normalize
+    # the conditionals.
     
     conditionals = Array(Float64, (npoints, nsites))
     scalers = Array(Float64, (nsites,))
@@ -337,7 +338,7 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     
         m = -realmax(Float64)
         
-        # Compute lmc for the current site
+        # Compute log multinomial coefficients for the current site
         
         @inbounds c = lmc(counts, i, nchars)
         
