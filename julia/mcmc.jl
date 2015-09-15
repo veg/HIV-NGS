@@ -317,7 +317,10 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     npoints, _ = size(rates)
     nsites, _ = size(counts)
     
-    # Initialize arrays for conditionals and scalers.
+    # Initialize arrays for conditionals and scalers. 'conditionals' will eventually
+    # be returned as an array containing the conditional probability of each entry
+    # in rates at each site with the given nucleotide counts. 'scalers' will 
+    # be reaturned as an array containing
     
     conditionals = Array(Float64, (npoints, nsites))
     scalers = Array(Float64, (nsites,))
