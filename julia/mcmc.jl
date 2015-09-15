@@ -305,7 +305,7 @@ end
 
 #--------------------------------gridscores------------------------------------#
 
-# Approximate negative infinity.
+# Set a threshold for the minimum value of a positive conditional probability.
 
 const smin = log(realmin(Float64))
 
@@ -326,7 +326,8 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     conditionals = Array(Float64, (npoints, nsites))
     scalers = Array(Float64, (nsites,))
     
-    # Compute log (rates)
+    # Compute log (rates). The entries of this array will be used as factors in the
+    # conditional probabilities.
     
     log_rates = log (rates)
      
@@ -334,7 +335,7 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     
     for i in 1:nsites
     
-        # Set m to approximately negative infinity
+        # Set m to the minimum threshold.
     
         m = -realmax(Float64)
         
@@ -345,13 +346,20 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
         # For each rate,
         
         for j in 1:npoints
+        
+           # Initialize s. This variable will be used to store the log conditional
+           # probability of the current site and rates entry.
+        
            s = c
            
-           # for each character,
+           # Compute the log conditional probability
            
            for k in 1:nchars
                 @inbounds s += counts[i, k] * log_rates[j, k]
             end
+            
+            # Remember the largest log conditional probability at this site.
+            
             if s > m
                 m = s
             end
@@ -368,9 +376,19 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
         # For each rate,
         
         for j in 1:npoints
+        
+            # Normalize using the appropriate scaler value.
+        
             @inbounds s = conditionals[j, i] - m
+            
+            # Set the conditional probability to 0 if it is below the threshold.
+            
             if s < smin
                 @inbounds conditionals[j, i] = 0
+                
+            # Otherwise, apply exp to the log conditional probability to yield 
+            # the actual conditional probability.
+                
             else
                 @inbounds conditionals[j, i] = exp(s)
             end
