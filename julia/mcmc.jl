@@ -484,13 +484,17 @@ function mcmc(
     
     npoints, nsites = size(conditionals)
     
-    # Normalize the conditionals and weights by site.
+    # Sum the conditionals by site.
 
     normalized_by_site = ones((1, npoints)) * conditionals
     
+    # Use the site-sums to produce normalized wieghts from the conditionals. These
+    # weights will be the initial state of the MCMC process.
+    
     normalized_weights = conditionals * ((1 ./ normalized_by_site) .* eye(nsites))
     
-    # Sum the weights by site and normalize.
+    # Sum the weights by site, make some small random perturbations,
+    # and re-normalize.
     
     sum_by_site = normalized_weights * ones((nsites, 1))
     weights = transpose((rand((npoints, 1)) .* (1.2 * sum_by_site - 0.8 * sum_by_site)) + 0.8 * sum_by_site)
@@ -540,18 +544,18 @@ function mcmc(
             j = rand(idxs)
         end
         
-        # Choose a random number proportional to stepsize and choose two
-        # of the weights.
+        # Choose a random number proportional to stepsize (called 'change') 
+        # and choose two of the weights.
 
         change = rand() * stepsize
         @inbounds weights_i = weights[i]
         @inbounds weights_j = weights[j]
         
-        # If weights_i exceeds change,
+        # If weights_i exceeds 'change,'
 
         if weights_i > change
         
-            # Initialize lldiff
+            # Initialize lldiff. 
             
             lldiff = 0
             
@@ -559,9 +563,14 @@ function mcmc(
             
             for k in 1:nsites
             
-                # Add a corresponding entry to diffvec and update lldiff.
+                # Add a corresponding entry to diffvec. Diffvec stores the difference 
+                # between the i'th and j'th conditionals at each site, multiplied by
+                # 'change'. It will be used to update lldiff for the next state.
             
                 @inbounds diffvec[k] = (conditionals[j, k] - conditionals[i, k]) * change
+                
+                # Compute lldiff. It is a vector storing the log likelihoods of the upcoming state.
+                
                 @inbounds lldiff += log(current_site_likelihoods[k] + diffvec[k])
             end
             
@@ -666,7 +675,8 @@ function postproc(conditionals::Array{Float64,2}, ws::Array{Float64,2})
     
     priors = zeros(Float64, (1, npoints))
     
-    # Deduce the priors from ws and normalize.
+    # Deduce the priors from ws and normalize. The priors
+    # are simply the average of the sampled weights.
     
     for i in 1:nsamples
         @inbounds priors += ws[i, :]
@@ -693,7 +703,7 @@ end
 
 #-------------------------------callvariants-----------------------------------#
 
-# Define a function to make variant calls.
+# Define a function to make variant calls. It will preserve those variants
 
 function callvariants(
         counts::Array{Int64,2},
@@ -765,7 +775,7 @@ function callvariants(
         
         if maj_pair[1] >= posterior_threshold
         
-            # Add the majority prior to s.
+            # Add the majority pair to s.
             
             push!(s, alphabet[maj_pair[2]])
             
