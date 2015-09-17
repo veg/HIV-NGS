@@ -484,23 +484,28 @@ function mcmc(
     
     npoints, nsites = size(conditionals)
     
-    # Sum the conditionals by site.
+    # Compute site-wise normalizing coefficients for the conditionals.
 
     normalized_by_site = ones((1, npoints)) * conditionals
     
-    # Use the site-sums to produce normalized wieghts from the conditionals. These
-    # weights will be the initial state of the MCMC process.
+    # Normalize the conditionals by site, and extend the results to a square matrix in preparation for the
+    # next step.
     
     normalized_weights = conditionals * ((1 ./ normalized_by_site) .* eye(nsites))
     
-    # Sum the weights by site, make some small random perturbations,
-    # and re-normalize.
+    # Produce a transposed version of the normalized values.
     
     sum_by_site = normalized_weights * ones((nsites, 1))
+    
+    # Add some random perturbation.
+    
     weights = transpose((rand((npoints, 1)) .* (1.2 * sum_by_site - 0.8 * sum_by_site)) + 0.8 * sum_by_site)
+    
+    # Normalize the results. These are the initial weights we will use to start the MCMC process.
+    
     weights /= sum(weights)
     
-    # Determine step size.
+    # Determine step size for the MCMC process.
 
     stepsize = max (2. / max(npoints, nsites), median(weights))
     
