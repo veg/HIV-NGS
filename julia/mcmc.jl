@@ -681,7 +681,7 @@ function postproc(conditionals::Array{Float64,2}, ws::Array{Float64,2})
     priors = zeros(Float64, (1, npoints))
     
     # Deduce the priors from ws and normalize. The priors
-    # are simply the average of the sampled weights.
+    # are simply the normalized averages of the sampled weights.
     
     for i in 1:nsamples
         @inbounds priors += ws[i, :]
@@ -689,7 +689,7 @@ function postproc(conditionals::Array{Float64,2}, ws::Array{Float64,2})
     priors = priors' / nsamples
     priors /= sum(priors)
     
-    # Compute the normalization constant for the posteriors.
+    # Compute the normalization constants for the posteriors.
     
     normalization = conditionals * priors
     
@@ -708,7 +708,8 @@ end
 
 #-------------------------------callvariants-----------------------------------#
 
-# Define a function to make variant calls. It will preserve those variants
+# Define a function to make variant calls. It will preserve those variants whose
+# posterior probabilities fall below a threshold.
 
 function callvariants(
         counts::Array{Int64,2},
