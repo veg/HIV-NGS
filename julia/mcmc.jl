@@ -922,8 +922,7 @@ function filterseqs(msa::String, variants::Dict{Int64,String}, dest::String, alp
                     idx = index(alphabet, seq[j])
                     
                     # If the alphabetical index is positive and this character
-                    # is not a variant at this site, but the variant at this 
-                    # site is ambiguous,
+                    # is not a variant at this site,
                     
                     if idx > 0 && !varmask[v, idx] && variants[sites[v]] in keys(AMBIGS)
                     
