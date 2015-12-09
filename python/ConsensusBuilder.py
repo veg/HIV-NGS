@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
     settings = arguments.parse_args()
   
-  
+
     analysis_json = json.load (settings.json)
 
     reg_exp_filter = {'patient_id' : settings.id, 'replicate': settings.replicate, 'compartment': settings.compartment}

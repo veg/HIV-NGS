@@ -183,7 +183,6 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                         current_step = "Loading %s" % files_to_copy[0][0]
                         ci = coverage_info(json.load (fh), minimum_coverage)
                         
-                                                  
                     if ci[0] is not None:    
                         
                         cell_entry = None
@@ -198,17 +197,20 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
                                           'target' : dir_name + "_" + spanned_region + ".fas",
                                           'consensus': None}
                                           
-                            #print (cell_entry)
-                            
                             row.append (cell_entry)
                         else:
                             row.append ("-".join([str (k) for k in ci[0]]))
                            
-                        row.append (ci[1]['median'])
+                        row.append ({'text' : '%d' % (ci[1]['median']),
+                                     'pop-up' : {'mean' : '%.2f' % ci[1]['mean'],
+                                                 'median' : ci[1]['median'],
+                                                 'IQR' : '%.0f-%.0f' % (ci[1]['IQR'][0],ci[1]['IQR'][1]),
+                                                 'range' : '%.0f-%.0f' % (ci[1]['min'],ci[1]['max'])}})
                         
                         try:
                             row.append ({'text' : '%d (%d)' % (data['merged_counts']['total'], data['merged_counts']['unique']),
-                                         'pop-up' : item['read_stats']})
+                                         'pop-up' : item['read_stats'],
+                                         'unique_id': item ['id']})
                         except (KeyError, AttributeError, TypeError, ValueError) as e:
                             row.append (None)
                     
@@ -355,7 +357,7 @@ def main (cache_file, out, store_dir, has_compartment, has_replicate, intrahost_
 
                 store_dict[d[1]]['tn93_diversity'] = tn93 * 0.01
             except (KeyError, AttributeError, TypeError) as e:
-                print (e, file = sys.stderr)
+                #print (e, file = sys.stderr)
                 continue
             
         for pair, distance_info in pairwise_distance_info.items():

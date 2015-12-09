@@ -52,7 +52,7 @@ def bam_to_fasta (in_path, out_path):
     return msa_out
     
 
-def get_tn93 (in_path, out_path, node ):
+def get_tn93 (in_path, out_path, delimiter, node ):
     print ("Running tn93 on %s (node %d)" % (in_path, node), file = sys.stderr)
     try:
         histogram_out = join (out_path, "tn93.json")
@@ -63,7 +63,7 @@ def get_tn93 (in_path, out_path, node ):
 
         with open (tn93out, "w") as json_file:
             with open (histogram_out, "w") as out_file:
-                subprocess.check_call (['/usr/bin/bpsh', str(node), '/usr/local/bin/tn93', '-t', str(0.01), '-c', '-q', in_path], stdout = json_file, stderr = out_file) 
+                subprocess.check_call (['/usr/bin/bpsh', str(node), '/usr/local/bin/tn93', '-t', str(0.01), '-c', '-d', delimiter, '-q', in_path], stdout = json_file, stderr = out_file) 
         return histogram_out
     except subprocess.CalledProcessError as e:
         print ('ERROR: tn93 call failed',e,file = sys.stderr)

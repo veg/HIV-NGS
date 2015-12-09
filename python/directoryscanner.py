@@ -356,7 +356,7 @@ def multinomial_filter(in_path, out_path, node):
 # arguments a string containg two in-paths, a node to run on, and some optional
 # parameters.
 
-def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_overlap=150):
+def check_compartmenalization(in_paths, node, delimiter = ':', replicates=100, subset=0.2, min_overlap=150):
     print(
         "Running compartmenalization tests on %s(node %d) " % (in_paths, node),
         file=sys.stderr
@@ -377,7 +377,7 @@ def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_ov
         process = subprocess.Popen(
             [
                 '/usr/bin/bpsh', str(node), '/usr/local/bin/tn93', '-t',
-                str(0.01), '-l', str(min_overlap), '-c', '-q', '-m', '-u',
+                str(0.01), '-l', str(min_overlap), '-c', '-d', delimiter, '-q', '-m', '-u',
                 str(subset), '-s', in_paths[0][0], in_paths[1][0]
             ],
             stdin=subprocess.DEVNULL, stderr=subprocess.PIPE,
@@ -406,7 +406,7 @@ def check_compartmenalization(in_paths, node, replicates=100, subset=0.2, min_ov
             process = subprocess.Popen(
                 [
                     '/usr/bin/bpsh', str(node), '/usr/local/bin/tn93', '-t',
-                    str(0.01), '-l', str(min_overlap), '-c', '-b', '-q', '-m',
+                    str(0.01), '-l', str(min_overlap), '-c', '-b', '-q', '-d', delimiter, '-m',
                     '-u', str(subset), '-s', in_paths[0][0], in_paths[1][0]
                 ],
                 stdin=subprocess.DEVNULL, stderr=subprocess.PIPE,
@@ -957,11 +957,11 @@ def analysis_handler(node_to_run_on):
     while True:
         (
             base_path, file_results_dir_overall, j, gene, analysis_cache,
-            median_read_length
+            median_read_length, copy_number_delimiter
         ) = task_queue.get()
         handle_a_gene(
             base_path, file_results_dir_overall, j, gene, analysis_cache,
-            node_to_run_on, median_read_length
+            node_to_run_on, median_read_length, copy_number_delimiter
         )
         task_queue.task_done()
 
@@ -975,8 +975,8 @@ def analysis_handler(node_to_run_on):
 
 def compartmentalization_handler(node_to_run_on):
     while True:
-        in_paths, tag, analysis_record = task_queue.get()
-        cmp = check_compartmenalization(in_paths, node_to_run_on, subset=0.5)
+        in_paths, tag, delimiter, analysis_record  = task_queue.get()
+        cmp = check_compartmenalization(in_paths, node_to_run_on, delimiter, subset=0.5)
         threading_lock.acquire()
         analysis_record[tag] = cmp
 
@@ -1006,7 +1006,7 @@ def set_update_json(path, text):
 ### handle_a_gene ###
 
 
-def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cache, node, median_read_length):
+def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cache, node, median_read_length, copy_number_delimiter):
     
     # Initialize the global variables and the update_json toggle.
     
@@ -1198,7 +1198,7 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
     if 'merged_msa' in analysis_cache and analysis_cache['merged_msa'] is not None:
         if 'tn93_json' not in analysis_cache:
             analysis_cache['tn93_json'] = ntr.get_tn93(
-                analysis_cache['merged_msa'], file_results_dir, node
+                analysis_cache['merged_msa'], file_results_dir, copy_number_delimiter, node
             )
             update_json = set_update_json(
                 file_results_dir,
@@ -1281,7 +1281,7 @@ def hash_file(filepath):
 
 # The main loop.
 
-def main(directory, results_dir, directory_structure, scan_q_filt, force_these_steps):
+def main(directory, results_dir, directory_structure, scan_q_filt, force_these_steps, clone_copy_delimiter):
 
     global NGS_run_cache
     global task_queue
@@ -1462,7 +1462,7 @@ def main(directory, results_dir, directory_structure, scan_q_filt, force_these_s
                         [
                             base_path, file_results_dir_overall, index, gene,
                             NGS_run_cache[base_path][gene],
-                            median_read_length
+                            median_read_length, clone_copy_delimiter
                         ]
                     )
 
@@ -1533,7 +1533,7 @@ def main(directory, results_dir, directory_structure, scan_q_filt, force_these_s
                             task_queue.put(
                                 [
                                     [[fp1, comp1], [fp2, comp2]],
-                                    pair_tag, subject_cache
+                                    pair_tag, clone_copy_delimiter, subject_cache
                                 ]
                             )
                             #subject_cache [pair_tag] = check_compartmenalization(
@@ -1620,6 +1620,14 @@ if __name__ == '__main__':
         help='force certain steps to ignore cached results',
         choices= ['F_ST']
     )
+    
+    parser.add_argument (
+    	'-l', '--delimiter',
+    	metavar = 'delimiter',
+    	type = str,
+    	help = "use this character as the delimiter for copy number (e.g. seqname:count); default ':'",
+    	default = ':'
+    )
 
     threading_lock = threading.Lock()
 
@@ -1667,8 +1675,10 @@ if __name__ == '__main__':
     #sys.exit(retcode)
 
     cache_file = args.cache
+    
+    
     retcode = main(
-        args.input, args.results, args.directory_structure, args.qfilt, args.force
+        args.input, args.results, args.directory_structure, args.qfilt, args.force, args.delimiter
     )
 
     sys.exit(retcode)
