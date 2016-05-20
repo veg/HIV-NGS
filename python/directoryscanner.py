@@ -165,7 +165,7 @@ def run_qfilt(in_path, in_qual, results_path, status_path):
                 if in_qual is not None:
                     subprocess.check_call(
                         [
-                            '/usr/local/bin/qfilt', '-Q', in_path, in_qual,
+                            '/usr/local/bin/qfilt', '-F', in_path, in_qual,
                             '-q', '15', '-l', '50', '-P', '-', '-R', '8', '-j'
                         ],
                         stdout=out_file, stderr=json_file
@@ -173,7 +173,7 @@ def run_qfilt(in_path, in_qual, results_path, status_path):
                 else:
                     subprocess.check_call(
                         [
-                            '/usr/local/bin/qfilt', '-F', in_path, '-q', '15',
+                            '/usr/local/bin/qfilt', '-Q', in_path, '-q', '15',
                             '-l', '50', '-P', '-', '-j', '-R', '8'
                         ],
                         stdout=out_file, stderr=json_file
