@@ -285,7 +285,7 @@ def count_collapsed_reads(in_path, out_path, node):
                 #]
             #)
         #)
-        process = subprocess.Popen (['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path], stdout = subprocess.DEVNULL, stderr = subprocess.PIPE, stdin = subprocess.DEVNULL, universal_newlines = True) 
+        process = subprocess.Popen (['/usr/bin/bpsh', str(node), '/usr/local/bin/seqcoverage', '-o', merged_json, '-t', 'protein', in_path], stdout = subprocess.DEVNULL, stderr = subprocess.PIPE, stdin = subprocess.DEVNULL, universal_newlines = True)
         ignored, json_out = process.communicate ()
         json_out = json.loads (json_out);
     # If an error occurs, say so.
@@ -399,7 +399,7 @@ def check_compartmenalization(in_paths, node, delimiter = ':', replicates=100, s
 
         for k in range(replicates):
 
-            # Use bpsh to apply tn93 to the two input files, generating info 
+            # Use bpsh to apply tn93 to the two input files, generating info
             # for the current replicate.
 
             status = 'Running replicate %d' % k
@@ -423,7 +423,7 @@ def check_compartmenalization(in_paths, node, delimiter = ':', replicates=100, s
             p_v += 1 if sim_fst >= baseline else 0
             #print("%d %g %g" % (k, p_v/replicates, sim_fst))
 
-        # Use p_v to compute the proportion of replicates for which sim_fst 
+        # Use p_v to compute the proportion of replicates for which sim_fst
         # is greater than baseline.
 
         p_v = (p_v+1.)/(replicates+1.)
@@ -435,7 +435,7 @@ def check_compartmenalization(in_paths, node, delimiter = ':', replicates=100, s
                          'Between': baseline_json['Histogram Between'],
                          'p' : p_v,
                          'f_st' : baseline}
- 
+
         # Return baseline info.
 
         return baseline_json
@@ -541,13 +541,13 @@ def collapse_diagnostic_region(in_path_list, out_path, node, overlap=100, count=
 
                 if check_file_paths_diversity and os.path.exists(merged_out) and not force_diversity_estimation:
 
-                    # Add it to the result dictionary and continue to the next 
+                    # Add it to the result dictionary and continue to the next
                     # input file.
 
                     result[region] = merged_out
                     continue
 
-                # Use bpsh to apply readreduce to the input file. 
+                # Use bpsh to apply readreduce to the input file.
 
                 print(
                     "Collapsing diagnostic region(overlap %d, count = %d) for %s(node %d) " % (overlap, count, in_path, node),
@@ -927,7 +927,7 @@ def process_diagnostic_region(in_path_list, out_path, node):
 ### update_global_record ###
 
 # This function dumps all current information to the cache .json. It takes as
-# inputs the path to the data directory, the current gene, and the current 
+# inputs the path to the data directory, the current gene, and the current
 # analysis record.
 
 def update_global_record(base_path, gene, analysis_record):
@@ -1007,22 +1007,22 @@ def set_update_json(path, text):
 
 
 def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cache, node, median_read_length, copy_number_delimiter):
-    
+
     # Initialize the global variables and the update_json toggle.
-    
+
     global threading_lock
     global NGS_run_cache
     update_json = False
-    
+
     # Construct the path to which to write the results files.
-    
+
     file_results_dir = os.path.join(file_results_dir_overall, gene)
-    
+
     # If the directory does not exist, create it.
 
     if not os.path.exists(file_results_dir):
         os.makedirs(file_results_dir)
-        
+
     # At the first gene,
 
     if index == 0:
@@ -1041,9 +1041,9 @@ def handle_a_gene(base_path, file_results_dir_overall, index, gene, analysis_cac
                     file_results_dir,
                     "if 'reference_sequence' not in analysis_cache"
                 )
-                
+
     # At all other genes,
-                
+
     else:
         prev_gene = genes[index-1]
         if 'discards' in NGS_run_cache[base_path][prev_gene] and NGS_run_cache[base_path][prev_gene]['discards'] is not None:
@@ -1345,17 +1345,17 @@ def main(directory, results_dir, directory_structure, scan_q_filt, force_these_s
 
                 print('Working on %s...' % base_file, file=sys.stderr)
                 dirn = root
-                
+
                 directory_components = []
 
                 while not os.path.samefile(directory, dirn):
                     dirn, part = os.path.split(dirn)
                     directory_components.append (part)
-                    
+
                 directory_components.reverse()
-                    
+
                 directory_components = directory_components[max(0,len (directory_components)-len (directory_structure)):]
-                
+
                 for i,v in enumerate (directory_structure):
                     try:
                         if v == "ID":
@@ -1366,9 +1366,9 @@ def main(directory, results_dir, directory_structure, scan_q_filt, force_these_s
                             key = 'compartment'
                         elif v == "REPLICATE":
                             key = 'replicate'
-                            
-                        NGS_run_cache[base_path][key] = directory_components[i]        
-                        
+
+                        NGS_run_cache[base_path][key] = directory_components[i]
+
                     except IndexError as err:
                         if v == "ID":
                             raise Exception ("Missing ID in %s" % directory)
@@ -1376,14 +1376,14 @@ def main(directory, results_dir, directory_structure, scan_q_filt, force_these_s
                             NGS_run_cache[base_path]['sample_date'] = today_as_str
                         else:
                             NGS_run_cache[base_path][key] = "missing"
-                            
+
                 respath = []
                 for k in ["patient_id", "sample_date", "compartment", "replicate"]:
                     if k in NGS_run_cache[base_path]:
                         respath.append (NGS_run_cache[base_path][k])
-                        
+
                 #print (respath)
-                    
+
                 file_results_dir_overall = os.path.join(results_dir, *respath)
 
                 if not os.path.exists(file_results_dir_overall):
@@ -1571,7 +1571,7 @@ if __name__ == '__main__':
         help='the file which contains the .json cache file',
         required=True,
     )
-    
+
     parser.add_argument(
         '-r', '--results',
         metavar='RESULTS',
@@ -1580,7 +1580,7 @@ if __name__ == '__main__':
         required=True,
     )
 
-    
+
     parser.add_argument(
         '-d', '--directory-structure',
         metavar = 'META',
@@ -1589,7 +1589,7 @@ if __name__ == '__main__':
         choices = ['ID', 'DATE', 'COMPARTMENT', 'REPLICATE', 'NONE'],
         default = ['ID','DATE','NONE','NONE']
     )
- 
+
 
     parser.add_argument(
         '-q', '--qfilt',
@@ -1612,7 +1612,7 @@ if __name__ == '__main__':
         help='the comma separated list of genes to include in the comparison',
         default='env,gag,rt'
     )
-    
+
     parser.add_argument(
         '-f', '--force',
         metavar='steps',
@@ -1620,33 +1620,88 @@ if __name__ == '__main__':
         help='force certain steps to ignore cached results',
         choices= ['F_ST']
     )
-    
+
     parser.add_argument (
-    	'-l', '--delimiter',
-    	metavar = 'delimiter',
-    	type = str,
-    	help = "use this character as the delimiter for copy number (e.g. seqname:count); default ':'",
-    	default = ':'
+        '-l', '--delimiter',
+        metavar = 'delimiter',
+        type = str,
+        help = "use this character as the delimiter for copy number (e.g. seqname:count); default ':'",
+        default = ':'
     )
+
+    parser.add_argument (
+        '-R', '--reference',
+        nargs   = 2,
+        action  = 'append',
+        type = str,
+        help = "use this argument to supply additional references in the as gene absolute path to fasta file",
+    )
+
+
 
     threading_lock = threading.Lock()
 
     args = None
     retcode = -1
     args = parser.parse_args()
-    
-    # check path specification 
-    
+
+
+
+    # check path specification
+
     args.directory_structure = [k for k in args.directory_structure if k != "NONE"]
-    
+
     if 'ID' not in args.directory_structure or 'DATE' not in args.directory_structure:
         raise Exception ('ID and DATE must be a part of the directory structure')
 
-    
+
     if not os.path.exists(args.results):
         os.mkdir(args.results)
 
-    nodes_to_run_on = [int(k) for k in args.node.split(",")]
+    def check_node_status (node):
+        process = subprocess.Popen(
+            [
+                '/usr/bin/bpstat', '-s', str(node)
+            ],
+            stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE
+        )
+        out, ignored = process.communicate()
+        out = out.decode ('UTF-8').strip()
+        if out == "up":
+            return True
+
+        print(
+                'WARNING: Node %s is down' % node,
+                file=sys.stderr
+            )
+        return False
+
+    nodes_to_run_on = [int(k) for k in args.node.split(",") if check_node_status (int(k))]
+
+    if len (nodes_to_run_on) == 0:
+        print(
+                'The list of available worker nodes is empty',
+                file=sys.stderr
+            )
+
+        sys.exit (1)
+
+    if args.reference:
+        for ref_gene in args.reference:
+            if re.match ('^[A-Za-z0-9_]+$', ref_gene[0]):
+                if ref_gene[0] in known_genes:
+                    raise Exception ("Duplicate reference gene name: '%s'" % ref_gene[0])
+                else:
+                    if os.path.exists (ref_gene[1]):
+                        known_genes.append (ref_gene[0])
+                        known_refs.append (os.path.normpath (ref_gene[1]))
+                        print ("Added reference gene '%s' with reference sequence at '%s'" % tuple(ref_gene), file = sys.stderr)
+                    else:
+                         raise Exception ("Reference sequence not found at: '%s'" % ref_gene[1])
+            else:
+                raise Exception ("Reference gene names must be alphanumeric (can also use '_'): '%s' did not conform to this pattern" % ref_gene[0])
+
 
     genes = args.genes.split(',')
 
@@ -1675,8 +1730,8 @@ if __name__ == '__main__':
     #sys.exit(retcode)
 
     cache_file = args.cache
-    
-    
+
+
     retcode = main(
         args.input, args.results, args.directory_structure, args.qfilt, args.force, args.delimiter
     )
