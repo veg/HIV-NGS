@@ -36,7 +36,7 @@ const AMBIGS = Dict{String, Char}(
 
 #----------------------------------index---------------------------------------#
 
-# Define a function that returns all indices at which a string matches a 
+# Define a function that returns the first index at which a string matches a 
 # certain character.
 
 function index(s::String, c::Char)
@@ -62,11 +62,13 @@ end
 #---------------------------------countmsa-------------------------------------#
 
 # Define a function to count, for each character of an alphabet, the number
-# of times that character appears in each sequence of an MSA file.
+# of times that character appears at each locus of an MSA file.
 
 function countmsa(msa::String, alphabet::String)
 
-    # Initialize the counters, counts and ncols.
+    # Initialize two variables: 'counts' and ncols'. 'counts' will be the array
+    # that holds the counts of each nucleotide at each locus. 'ncols' will be 
+    # the number of loci in the alignment.
     
     counts = nothing
     ncols = 0
@@ -76,15 +78,22 @@ function countmsa(msa::String, alphabet::String)
     
     for (i, (name, seq)) in enumerate(FastaReader(msa))
     
-        # If the counters are empty, assign to ncols the length of the current
-        # sequence and initialize counts as a vector of zeros with length ncols.
+        # If 'counts' is freshly initialized, do the following:
+        #
+        # 1. Assign to ncols the length of the current sequence. In a proper MSA,
+        #    all sequences have the same length, so this is simply the number of
+        #    loci in the alignment.
+        #
+        # 2. Initialize 'counts' as an array of zeros with size 'ncols' by 4.
+        #    This will be the final shape of the array, since there are 'ncols'
+        #    loci and 4 nucleotides.
     
         if counts == nothing
             ncols = length(seq)
             counts = zeros(Int64, (ncols, 4))
             
-        # If the counters are not empty, check that ncols == length(seq), and
-        # say something if they are not equal.
+        # If 'counts' is not freshly initialized, check that ncols == length(seq),
+        # and say something if they are not equal.
             
         elseif length(seq) != ncols
             error("provided file is not an MSA! length($name) = $(length(seq)), not $ncols!")
@@ -132,14 +141,16 @@ function rategrid(n::Integer, error_threshold::Float64)
     else   
         rates = logspace (-4,log10(0.1),n)
     end 
-    #print (rates)
     
     # Initialize uniques, an empty two-dimensional array. Uniques is initialized
-    # as a set to avoid duplicate rows.
+    # as a set to avoid duplicate rows. It will eventually hold a complete
+    # list of the multinomial distributions allowed by the rates vector.
     
     uniques = Set{Vector{Float64}}()
     
-    # Build uniques using the error threshold.
+    # Build uniques using the error threshold. We begin with the four most 
+    # extreme cases: those in which the probability mass is centered as 
+    # much as possible on one nucleotide.
     
     M = 1. - 3. * error_threshold
 	union! (uniques, {[M,error_threshold,error_threshold,error_threshold]})
@@ -151,7 +162,9 @@ function rategrid(n::Integer, error_threshold::Float64)
         
     for a in rates
     
-        # Add a row to the uniques array.
+        # Add 12 rows to the rates vector. These reperesent all of the ways in
+        # which one the four distributions added previously can be disturbed
+        # in one dimension.
     
         M = 1. - a - 2. * error_threshold
         
@@ -166,10 +179,19 @@ function rategrid(n::Integer, error_threshold::Float64)
 	        end
 	    end
 	    
-	    # Add four more rows to the uniques array.
+	# Next we introduce two more values from the rates vector, so that
+	# we have three values that together define a multinomial
+	# distribution. 
+	
+	# For every pair of rates, 
                 
         for b in rates
             for c in rates
+            
+            # Add four more lines to 'uniques.' In the grand scheme, this
+            # fills out the discretization of the space of multinomial
+            # distributions.
+            
                 M = 1. - (a + b + c)
 		        union! (uniques, {[M,a,b,c]})
 		        union! (uniques, {[a,M,b,c]})
@@ -180,13 +202,17 @@ function rategrid(n::Integer, error_threshold::Float64)
             end
         end
     end
+    
+    # The set of 'uniques' is now complete.
+    
     done()
     
     # Initialize a counter i.
     
     i = 1
     
-    # Initialize an empty rate grid.
+    # Initialize an empty rate grid. We will copy the information from uniques
+    # into it so that we can return an array instead of a set.
     
     rg = Array (Float64, (length (uniques),4))
     
@@ -208,7 +234,6 @@ function rategrid(n::Integer, error_threshold::Float64)
     # Print the length of uniques and return the rate grid.
     
     println (length (uniques))
-    #print (uniques)
     return rg
 end
 
@@ -256,7 +281,8 @@ end
 #-----------------------------------lmc----------------------------------------#
 
 
-# Define a function to return the lmc value for a given site.
+# Define a function to return the lmc (logarithm of multinomial coefficient)
+# for a given site.
 
 function lmc(counts::Array{Int64,2}, site::Int64, nchars::Int64)
 
@@ -279,7 +305,7 @@ end
 
 #--------------------------------gridscores------------------------------------#
 
-# Approximate negative infinity.
+# Set a threshold for the minimum value of a positive conditional probability.
 
 const smin = log(realmin(Float64))
 
@@ -291,12 +317,17 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     npoints, _ = size(rates)
     nsites, _ = size(counts)
     
-    # Initialize arrays for conditionals and scalers.
+    # Initialize arrays for conditionals and scalers. 'conditionals' will eventually
+    # be returned as an array containing the conditional probability of each entry
+    # in rates at each site with the given nucleotide counts. 'scalers' will 
+    # be reaturned as an array containing a list of factors used to normalize
+    # the conditionals.
     
     conditionals = Array(Float64, (npoints, nsites))
     scalers = Array(Float64, (nsites,))
     
-    # Compute log (rates)
+    # Compute log (rates). The entries of this array will be used as factors in the
+    # conditional probabilities.
     
     log_rates = log (rates)
      
@@ -304,24 +335,31 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
     
     for i in 1:nsites
     
-        # Set m to approximately negative infinity
+        # Set m to the minimum threshold.
     
         m = -realmax(Float64)
         
-        # Compute lmc for the current site
+        # Compute log multinomial coefficients for the current site
         
         @inbounds c = lmc(counts, i, nchars)
         
         # For each rate,
         
         for j in 1:npoints
+        
+           # Initialize s. This variable will be used to store the log conditional
+           # probability of the current site and rates entry.
+        
            s = c
            
-           # for each character,
+           # Compute the log conditional probability
            
            for k in 1:nchars
                 @inbounds s += counts[i, k] * log_rates[j, k]
             end
+            
+            # Remember the largest log conditional probability at this site.
+            
             if s > m
                 m = s
             end
@@ -338,9 +376,19 @@ function gridscores(counts::Array{Int64,2}, rates::Array{Float64,2}, alphabet::S
         # For each rate,
         
         for j in 1:npoints
+        
+            # Normalize using the appropriate scaler value.
+        
             @inbounds s = conditionals[j, i] - m
+            
+            # Set the conditional probability to 0 if it is below the threshold.
+            
             if s < smin
                 @inbounds conditionals[j, i] = 0
+                
+            # Otherwise, apply exp to the log conditional probability to yield 
+            # the actual conditional probability.
+                
             else
                 @inbounds conditionals[j, i] = exp(s)
             end
@@ -399,8 +447,15 @@ end
 # Define a function to compute ll and dir.
 
 function jll(conditionals::Array{Float64,2}, scalers::Array{Float64,1}, weights::Array{Float64,2}, alpha::Float64)
+
+    # ll is the log likelihood
+
     ll = sum(log(weights * conditionals) + scalers')
+    
+    # dir is the value of ldensity
+    
     dir = ldensity(weights, alpha)
+    
     return (ll, dir)
 end
 
@@ -420,7 +475,8 @@ function mcmc(
         expected_nsamples::Int64=100,
         alpha::Float64=0.5)
         
-    # Compute nburnin from the inputs.
+    # Compute nburnin, the number of "burn-in" samples for the MCMC process,
+    # from the inputs.
 
     nburnin = iround(chain_length * burnin_fraction)
     
@@ -428,19 +484,28 @@ function mcmc(
     
     npoints, nsites = size(conditionals)
     
-    # Normalize the conditionals and weights by site.
+    # Compute site-wise normalizing coefficients for the conditionals.
 
     normalized_by_site = ones((1, npoints)) * conditionals
     
+    # Normalize the conditionals by site, and extend the results to a square matrix in preparation for the
+    # next step.
+    
     normalized_weights = conditionals * ((1 ./ normalized_by_site) .* eye(nsites))
     
-    # Sum the weights by site and normalize.
+    # Produce a transposed version of the normalized values.
     
     sum_by_site = normalized_weights * ones((nsites, 1))
+    
+    # Add some random perturbation.
+    
     weights = transpose((rand((npoints, 1)) .* (1.2 * sum_by_site - 0.8 * sum_by_site)) + 0.8 * sum_by_site)
+    
+    # Normalize the results. These are the initial weights we will use to start the MCMC process.
+    
     weights /= sum(weights)
     
-    # Determine step size.
+    # Determine step size for the MCMC process.
 
     stepsize = max (2. / max(npoints, nsites), median(weights))
     
@@ -484,18 +549,18 @@ function mcmc(
             j = rand(idxs)
         end
         
-        # Choose a random number proportional to stepsize and choose two
-        # of the weights.
+        # Choose a random number proportional to stepsize (called 'change') 
+        # and choose two of the weights.
 
         change = rand() * stepsize
         @inbounds weights_i = weights[i]
         @inbounds weights_j = weights[j]
         
-        # If weights_i exceeds change,
+        # If weights_i exceeds 'change,'
 
         if weights_i > change
         
-            # Initialize lldiff
+            # Initialize lldiff. 
             
             lldiff = 0
             
@@ -503,9 +568,14 @@ function mcmc(
             
             for k in 1:nsites
             
-                # Add a corresponding entry to diffvec and update lldiff.
+                # Add a corresponding entry to diffvec. Diffvec stores the difference 
+                # between the i'th and j'th conditionals at each site, multiplied by
+                # 'change'. It will be used to update lldiff for the next state.
             
                 @inbounds diffvec[k] = (conditionals[j, k] - conditionals[i, k]) * change
+                
+                # Compute lldiff. It is a vector storing the log likelihoods of the upcoming state.
+                
                 @inbounds lldiff += log(current_site_likelihoods[k] + diffvec[k])
             end
             
@@ -610,7 +680,8 @@ function postproc(conditionals::Array{Float64,2}, ws::Array{Float64,2})
     
     priors = zeros(Float64, (1, npoints))
     
-    # Deduce the priors from ws and normalize.
+    # Deduce the priors from ws and normalize. The priors
+    # are simply the normalized averages of the sampled weights.
     
     for i in 1:nsamples
         @inbounds priors += ws[i, :]
@@ -618,7 +689,7 @@ function postproc(conditionals::Array{Float64,2}, ws::Array{Float64,2})
     priors = priors' / nsamples
     priors /= sum(priors)
     
-    # Compute the normalization constant for the posteriors.
+    # Compute the normalization constants for the posteriors.
     
     normalization = conditionals * priors
     
@@ -637,7 +708,8 @@ end
 
 #-------------------------------callvariants-----------------------------------#
 
-# Define a function to make variant calls.
+# Define a function to make variant calls. It will preserve those variants whose
+# posterior probabilities fall below a threshold.
 
 function callvariants(
         counts::Array{Int64,2},
@@ -709,7 +781,7 @@ function callvariants(
         
         if maj_pair[1] >= posterior_threshold
         
-            # Add the majority prior to s.
+            # Add the majority pair to s.
             
             push!(s, alphabet[maj_pair[2]])
             
@@ -850,8 +922,7 @@ function filterseqs(msa::String, variants::Dict{Int64,String}, dest::String, alp
                     idx = index(alphabet, seq[j])
                     
                     # If the alphabetical index is positive and this character
-                    # is not a variant at this site, but the variant at this 
-                    # site is ambiguous,
+                    # is not a variant at this site,
                     
                     if idx > 0 && !varmask[v, idx] && variants[sites[v]] in keys(AMBIGS)
                     
